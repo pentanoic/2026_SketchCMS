@@ -1,0 +1,34 @@
+DirectoryIndex index.php index.html
+
+AddDefaultCharset UTF-8
+
+# URL-rewriting
+<IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
+    RewriteEngine On
+
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+
+    # Template asset function
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.+)\.(\d+)\.(js|css|png|jpg|gif)$ $1.$3 [L]
+
+    # Restrict direct access to /templates except allowed paths
+    # RewriteCond %{REQUEST_URI} ^/templates(/.*)?$
+    # RewriteCond %{REQUEST_URI} !^/templates/[^/]+/public(/.*)?$
+    # RewriteCond %{REQUEST_URI} !^/templates/_asset(/.*)?$
+    # RewriteRule ^.*$ /404.html [L,R=302]
+
+    # Send Requests To Front Controller...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule .* index.php [QSA,L]
+</IfModule>
+
