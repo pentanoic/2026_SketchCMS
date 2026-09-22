@@ -1,5 +1,6 @@
 # SketchCMS
 
+
 SketchCMS là một mã nguồn quản trị nội dung miễn phí, còn non trẻ. Mã nguồn được xây dựng với định hướng trở thành một nền tảng nhẹ, linh hoạt và dễ mở rộng dành cho các website và hệ thống quản trị nội dung. Được phát triển dựa trên mô hình kiến trúc HMVC, SketchCMS tổ chức mã nguồn theo từng module độc lập, giúp quá trình phát triển, bảo trì và mở rộng hệ thống trở nên rõ ràng hơn. Mỗi module có thể đảm nhiệm một chức năng riêng, đồng thời có khả năng phối hợp với các thành phần khác trong toàn hệ thống.
 ---
  
