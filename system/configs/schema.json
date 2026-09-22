@@ -15,9 +15,10 @@
             "name": "varchar(255) COLLATE utf8mb4_general_ci NOT NULL",
             "slug": "varchar(255) COLLATE utf8mb4_general_ci NOT NULL",
             "content": "text COLLATE utf8mb4_general_ci NOT NULL",
-            "keyword": "varchar(255) COLLATE utf8mb4_general_ci NOT NULL"
+            "keyword": "varchar(255) COLLATE utf8mb4_general_ci NOT NULL",
+            "meta_data": "text COLLATE utf8mb4_general_ci"
         },
-        "create_sql": "CREATE TABLE `articles_category` (\n`id` int UNSIGNED NOT NULL AUTO_INCREMENT,\n`community` int NOT NULL DEFAULT '1',\n`name` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`slug` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`content` text COLLATE utf8mb4_general_ci NOT NULL,\n`keyword` varchar(255) COLLATE utf8mb4_general_ci NOT NULL\n,\nPRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;\n"
+        "create_sql": "CREATE TABLE `articles_category` (\n`id` int UNSIGNED NOT NULL AUTO_INCREMENT,\n`community` int NOT NULL DEFAULT '1',\n`name` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`slug` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`content` text COLLATE utf8mb4_general_ci NOT NULL,\n`keyword` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`meta_data` text COLLATE utf8mb4_general_ci,\nPRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;\n"
     },
     "articles_chap": {
         "columns": {
@@ -82,6 +83,7 @@
             "title": "text COLLATE utf8mb4_general_ci NOT NULL",
             "slug": "varchar(255) COLLATE utf8mb4_general_ci NOT NULL",
             "content": "text COLLATE utf8mb4_general_ci NOT NULL",
+            "meta_data": "text COLLATE utf8mb4_general_ci",
             "time": "int NOT NULL",
             "blocked": "int NOT NULL DEFAULT '0'",
             "sticked": "int NOT NULL DEFAULT '0'",
@@ -92,7 +94,7 @@
             "buyfile": "int NOT NULL DEFAULT '0'",
             "like": "text COLLATE utf8mb4_general_ci"
         },
-        "create_sql": "CREATE TABLE `articles_post` (\n`id` int UNSIGNED NOT NULL AUTO_INCREMENT,\n`title` text COLLATE utf8mb4_general_ci NOT NULL,\n`slug` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`content` text COLLATE utf8mb4_general_ci NOT NULL,\n`time` int NOT NULL,\n`blocked` int NOT NULL DEFAULT '0',\n`sticked` int NOT NULL DEFAULT '0',\n`update_time` int NOT NULL,\n`category` int NOT NULL,\n`view` int NOT NULL DEFAULT '1',\n`author` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`buyfile` int NOT NULL DEFAULT '0',\n`like` text COLLATE utf8mb4_general_ci\n,\nPRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;\n"
+        "create_sql": "CREATE TABLE `articles_post` (\n`id` int UNSIGNED NOT NULL AUTO_INCREMENT,\n`title` text COLLATE utf8mb4_general_ci NOT NULL,\n`slug` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`content` text COLLATE utf8mb4_general_ci NOT NULL,\n`meta_data` text COLLATE utf8mb4_general_ci,\n`time` int NOT NULL,\n`blocked` int NOT NULL DEFAULT '0',\n`sticked` int NOT NULL DEFAULT '0',\n`update_time` int NOT NULL,\n`category` int NOT NULL,\n`view` int NOT NULL DEFAULT '1',\n`author` varchar(255) COLLATE utf8mb4_general_ci NOT NULL,\n`buyfile` int NOT NULL DEFAULT '0',\n`like` text COLLATE utf8mb4_general_ci,\nPRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;\n"
     },
     "mail": {
         "columns": {

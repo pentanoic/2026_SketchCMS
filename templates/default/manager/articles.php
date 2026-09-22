@@ -122,8 +122,8 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Diễn đàn', 
                             <hr style="border-color:var(--border);">
                             <div class="mb-3">
                                 <label class="form-label font-weight-bold text-danger">Xác thực thao tác</label>
-                                <p class="small text-muted mb-2">Nhập <code>forum</code> và mật khẩu Admin của bạn để lưu thay đổi.</p>
-                                <input type="text" class="form-control mb-2" name="module_name" required autocomplete="off" placeholder="Tên phân hệ (forum)" style="background:var(--surface-muted); border-radius:8px;">
+                                <p class="small text-muted mb-2">Nhập <code>articles</code> và mật khẩu Admin của bạn để lưu thay đổi.</p>
+                                <input type="text" class="form-control mb-2" name="module_name" required autocomplete="off" placeholder="Tên phân hệ (articles)" style="background:var(--surface-muted); border-radius:8px;">
                                 <input type="password" class="form-control" name="admin_pass" required placeholder="Mật khẩu Admin" style="background:var(--surface-muted); border-radius:8px;">
                             </div>
                         </div>
@@ -151,7 +151,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Diễn đàn', 
                                 <i class="fa fa-warning"></i> CẢNH BÁO: Tất cả bài viết, bình luận, chương và tập tin thuộc chuyên mục này sẽ bị <b>XÓA VĨNH VIỄN</b>!
                             </div>
                             <div class="mb-3">
-                                <label class="form-label font-weight-bold">Tên phân hệ (Nhập <code>forum</code>)</label>
+                                <label class="form-label font-weight-bold">Tên phân hệ (Nhập <code>articles</code>)</label>
                                 <input type="text" class="form-control" name="module_name" required autocomplete="off" placeholder="articles" style="background:var(--surface-muted); border-radius:8px;">
                             </div>
                             <div class="mb-3">
@@ -212,8 +212,8 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Diễn đàn', 
                     <hr style="border-color:var(--border);">
                     <div class="mb-3">
                         <label class="form-label font-weight-bold text-danger">Xác thực thao tác</label>
-                        <p class="small text-muted mb-2">Nhập <code>forum</code> và mật khẩu Admin của bạn để thêm.</p>
-                        <input type="text" class="form-control mb-2" name="module_name" required autocomplete="off" placeholder="Tên phân hệ (forum)" style="background:var(--surface-muted); border-radius:8px;">
+                        <p class="small text-muted mb-2">Nhập <code>articles</code> và mật khẩu Admin của bạn để thêm.</p>
+                        <input type="text" class="form-control mb-2" name="module_name" required autocomplete="off" placeholder="Tên phân hệ (articles)" style="background:var(--surface-muted); border-radius:8px;">
                         <input type="password" class="form-control" name="admin_pass" required placeholder="Mật khẩu Admin" style="background:var(--surface-muted); border-radius:8px;">
                     </div>
                 </div>
@@ -303,7 +303,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Diễn đàn', 
                                 <i class="fa fa-warning"></i> CẢNH BÁO: Xóa bài viết này cũng sẽ xóa tất cả bình luận, chương (chapter) và tệp đính kèm liên quan vĩnh viễn!
                             </div>
                             <div class="mb-3">
-                                <label class="form-label font-weight-bold">Tên phân hệ (Nhập <code>forum</code>)</label>
+                                <label class="form-label font-weight-bold">Tên phân hệ (Nhập <code>articles</code>)</label>
                                 <input type="text" class="form-control" name="module_name" required autocomplete="off" placeholder="articles" style="background:var(--surface-muted); border-radius:8px;">
                             </div>
                             <div class="mb-3">
