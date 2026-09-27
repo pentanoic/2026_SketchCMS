@@ -1,0 +1,55 @@
+<script>
+    function imgurUpload(f, ob) {
+  var files = document.querySelector(f);
+  files.onchange = function () {
+    var file = this.files[0];
+    if (file && file.type.match(/image.*/)) {
+      var fd = new FormData();
+      fd.append("image", file);
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", atob("<?=btoa("https://imgur.stockage.workers.dev?clientId=b558035630d26ef")?>"));
+
+      xhr.upload.onprogress = function (e) {
+        if (e.lengthComputable) {
+          var percent = Math.floor((e.loaded / e.total) * 100) + '%';
+          ob.loading(percent);
+        }
+      };
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          try {
+            var res = JSON.parse(xhr.responseText);
+            if (res.success && res.status === 200 && res.data && res.data.link) {
+              ob.loaded(res.data.link);  // Chỉ truyền link ảnh Imgur
+            } else {
+              alert('Lỗi upload: ' + (res.data?.error || res.error || 'Không rõ'));
+            }
+          } catch (e) {
+            alert('Lỗi phân tích phản hồi từ server');
+          }
+        } else {
+          alert('Lỗi: tải lên thất bại');
+        }
+      };
+      xhr.onerror = function () {
+        alert('Lỗi kết nối mạng');
+      };
+      xhr.send(fd);
+    } else {
+      alert('Chỉ cho phép chọn ảnh');
+    }
+  };
+}
+document.querySelector("#upload").onclick = function () {
+  document.querySelector("#f").click();
+};
+imgurUpload("#f", {
+  loading: function (percent) {
+    document.querySelector("#upload").innerHTML = percent;
+  },
+  loaded: function (link) {
+    tag("[img]" + link, "[/img]");
+    $("#upload").html('<i class="fa fa-upload" aria-hidden="true"></i>');
+  }
+});
+</script>

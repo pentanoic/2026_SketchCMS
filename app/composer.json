@@ -1,0 +1,14 @@
+{
+    "config": {
+        "sort-packages": true
+    },
+    "require": {
+        "php": "^8.0",
+        "ext-gd": "*",
+        "league/plates": "3.*",
+        "phpmailer/phpmailer": "6.9.1",
+        "scrivo/highlight.php": "v9.18.1.10",
+        "symfony/string": "^6.4",
+        "symfony/translation-contracts": "^3.6"
+    }
+}
