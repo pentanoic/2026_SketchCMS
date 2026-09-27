@@ -105,12 +105,15 @@ class articlesController extends Controller
         $page_max = ceil($PostCount / $per);
         $start = ($page - 1) * $per;
 
-        $PostListRaw = $this->articlesModel->PostListByTag($TagDetail['id'], $per, $start);
+        $getPostList = $this->articlesModel->PostListByTag($TagDetail['id'], $per, $start);
         $PostList = [];
-        foreach ($PostListRaw as $PostItem) {
-            // đếm bình luận
-            $PostItem['CommentCount'] = $this->articlesModel->ForumStats('count_comment_in_post', $PostItem['id']);
-            $PostList[] = $PostItem;
+        foreach ($getPostList as $PostDetail) {
+            $author = mb_strtolower($PostDetail['author']);
+            $PostDetail['UserDetail'] = $this->userModel->UserDetailWithFields('nick', $author);
+            $PostDetail['chapter'] = $this->articlesModel->ForumStats('count_chapter_in_post', $PostDetail['id']);
+            $PostDetail['comment'] = $this->articlesModel->ForumStats('count_comment_in_post', $PostDetail['id']);
+
+            $PostList[] = $PostDetail;
         }
 
         return view()->setTitle($page_title)->render('articles/tag_detail', [

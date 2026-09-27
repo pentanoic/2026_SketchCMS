@@ -201,7 +201,7 @@ class homeController extends Controller
         
         $titles = [
             'terms' => 'Nội Quy & Điều Khoản Sử Dụng',
-            'about' => 'Về Chúng Tôi (Dorew.ovh)',
+            'about' => 'Về Chúng Tôi',
             'help' => 'Trung Tâm Trợ Giúp'
         ];
         

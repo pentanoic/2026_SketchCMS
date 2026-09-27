@@ -15,7 +15,7 @@ $router->add('/articles/{action:(post|chapter)}-{:id}/delete', 'articlesControll
 # thông tin bài viết
 $router->add('/articles/{PostSlug:[a-zA-Z0-9\-_]+}', 'articlesController@PostDetail', 'GET|POST');
 # thông tin tag
-$router->add('/tag/{slug:[a-zA-Z0-9\-_]+}', 'articlesController@TagDetail', 'GET');
+$router->add('/tag/{TagSlug:[a-zA-Z0-9\-_]+}', 'articlesController@TagDetail', 'GET');
 $router->add('/articles/{PostSlug:[a-zA-Z0-9\-_]+}.html', 'articlesController@PostDetail', 'GET|POST');
 # thông tin chương
 $router->add('/view-chap/{ChapterSlug:[a-zA-Z0-9\-_]+}', 'articlesController@ChapterDetail', 'GET');
