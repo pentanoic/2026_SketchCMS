@@ -78,8 +78,8 @@ class userController extends Controller
                             $pdo = Container::get(DB::class);
                             if (verify_password_seamless($password, $user['pass'], $user['id'], $pdo)) {
                                 // Reset failed logins
-                                if ($user['failed_logins'] > 0) {
-                                    $pdo->exec("UPDATE users SET failed_logins = 0, lock_time = 0 WHERE id = {$user['id']}");
+                                if ($user['failed_logins'] > 0 || $user['lock_time'] > 0) {
+                                    $this->userModel->resetLoginFailures((int)$user['id']);
                                 }
                                 
                                 // Refetch user to get the new pass if it was migrated
@@ -92,22 +92,32 @@ class userController extends Controller
                                     // Generate opaque token
                                     $token = bin2hex(random_bytes(32));
                                     // Hash and save to database
-                                    $hashed_token = password_hash($token, PASSWORD_DEFAULT);
-                                    $pdo->exec("UPDATE users SET remember_token = '{$hashed_token}' WHERE id = {$user['id']}");
+                                    $hashed_token = hash_password_secure($token);
+                                    $stmtRem = $pdo->prepare("UPDATE users SET remember_token = :token WHERE id = :id");
+                                    $stmtRem->execute([
+                                        ':token' => $hashed_token,
+                                        ':id'    => (int)$user['id']
+                                    ]);
                                     
-                                    // Save cookie (365 day)
-                                    setcookie('cuid', base64_encode($user['id']), TIME + 31536000, COOKIE_PATH);
-                                    setcookie('cups', $token, TIME + 31536000, COOKIE_PATH);
+                                    $b64Id = base64_encode((string)$user['id']);
+                                    $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
+                                            . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+                                    $signedCuid = $b64Id . '.' . hash_hmac('sha256', $b64Id, $secret);
+
+                                    $cookieOpts = [
+                                        'expires'  => TIME + 31536000,
+                                        'path'     => COOKIE_PATH ?: '/',
+                                        'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+                                        'httponly' => true,
+                                        'samesite' => 'Lax',
+                                    ];
+                                    setcookie('cuid', $signedCuid, $cookieOpts);
+                                    setcookie('cups', $token, $cookieOpts);
                                 }
                                 redirect('/');
                             } else {
                                 // Sai mật khẩu -> Tăng failed logins
-                                $failed = $user['failed_logins'] + 1;
-                                $lock = 0;
-                                if ($failed >= 5) {
-                                    $lock = time() + 15 * 60; // Khoá 15 phút
-                                }
-                                $pdo->exec("UPDATE users SET failed_logins = $failed, lock_time = $lock WHERE id = {$user['id']}");
+                                $this->userModel->recordLoginFailure($user);
                                 
                                 $error = 'Tên tài khoản hoặc mật khẩu không chính xác';
                             }
@@ -198,8 +208,9 @@ class userController extends Controller
                     'sex' => $sex
                 ]);
 
+                $newUser = $this->userModel->UserDetailWithFields('id', $user_id);
                 $_SESSION['uid'] = $user_id;
-                $_SESSION['ups'] = e_pass($password);
+                $_SESSION['ups'] = $newUser['pass'] ?? '';
                 redirect('/');
             } else {
                 $error = display_error($error);
@@ -513,12 +524,12 @@ class userController extends Controller
         // password
         if ($UserDetailEditType == 'password') {
             $SaveData = [
-                'pass' => e_pass($new_password)
+                'pass' => hash_password_secure($new_password)
             ];
             if ($this->request->getMethod() === 'POST') {
                 $error = [];
                 // check old password
-                if (e_pass($old_password) != $MyDetail['pass']) {
+                if (!verify_password_seamless($old_password, $MyDetail['pass'], $MyDetail['id'], Container::get(DB::class))) {
                     $error[] = 'Mật khẩu cũ không đúng';
                 }
                 // check new password
@@ -630,7 +641,7 @@ class userController extends Controller
             
             // Check CSRF
             $token = $this->request->postVar('csrf_token', '');
-            if (!isCSRFTokenValid($token)) {
+            if (isCSRFTokenValid($token) === 'error') {
                 $error = 'Invalid token';
             } else {
                 // Check if email exists
@@ -716,14 +727,14 @@ class userController extends Controller
             $password_confirm = $this->request->postVar('password_confirm', '');
             
             $csrf = $this->request->postVar('csrf_token', '');
-            if (!isCSRFTokenValid($csrf)) {
+            if (isCSRFTokenValid($csrf) === 'error') {
                 $error = 'Invalid token';
             } elseif (strlen($password) < 6) {
                 $error = 'Mật khẩu phải có ít nhất 6 ký tự.';
             } elseif ($password !== $password_confirm) {
                 $error = 'Mật khẩu xác nhận không khớp.';
             } else {
-                $new_hash = md5($password);
+                $new_hash = hash_password_secure($password);
                 if ($this->userModel->ResetPasswordByToken($token, $new_hash)) {
                     $success = 'Mật khẩu đã được đặt lại thành công! Bạn có thể đăng nhập ngay bây giờ.';
                 } else {

@@ -134,16 +134,16 @@ class mailModel extends Model
             `time` = :time,
             `view` = :view
         ');
-        $stmt_InstertToSender->execute([
+        $stmt_InstertToReceiver->execute([
             'sender_receiver' => $Receiver_Sender,
             'nick' => $Sender,
-            'content' => _e($content),
+            'content' => $content,
             'time' => TIME,
             'view' => 'no'
         ]);
     }
 
-    public function MailViewUpdate($mail_id)
+    public function MailViewUpdate($mail_id, $viewerNick = null)
     {
         $UserModel = $this->load->model('user');
         // lấy thông tin hàng hiện tại
@@ -152,11 +152,20 @@ class mailModel extends Model
         ');
         $stmt->execute(['id' => $mail_id]);
         $data = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$data || empty($data['sender_receiver'])) {
+            return null;
+        }
         $Sender_Receiver = $data['sender_receiver'];
         $SR = explode('_', $Sender_Receiver);
-        $Sender = $SR[0];
-        $Receiver = $SR[1];
+        $Sender = $SR[0] ?? '';
+        $Receiver = $SR[1] ?? '';
+        if ($viewerNick !== null && mb_strtolower($viewerNick) !== mb_strtolower($Sender)) {
+            return null;
+        }
         $SenderDetail = $UserModel->UserDetailWithFields('nick', $Sender);
+        if (!$SenderDetail) {
+            return null;
+        }
         // xóa tin nhắn mới
         $SenderNewMail = str_replace($Receiver . '.', '', $SenderDetail['new_mail']);
         $stmt_update_user = $this->db->prepare('UPDATE `users` SET `new_mail` = :SenderNewMail WHERE `nick` = :Sender');

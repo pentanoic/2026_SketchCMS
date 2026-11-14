@@ -92,10 +92,11 @@ class managerController extends Controller
             
             // Format lại mảng
             $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            $content = str_replace(["array (", ")"], ["[", "]"], $content);
 
             file_put_contents($systemConfigPath, $content);
-            $success = 'Cập nhật cấu hình thành công!';
+            setcookie('manager_settings_success', 'Cập nhật cấu hình thành công!', time() + 5, '/');
+            redirect(url('/manager/settings'));
+            return;
         }
 
         return view('manager/settings', [
@@ -112,7 +113,7 @@ class managerController extends Controller
             return ['status' => 'error', 'message' => 'Method not allowed'];
         }
 
-        if ($this->request->user()->user['level'] < 120) {
+        if ($this->request->user()->user['level'] < 126) {
             return ['status' => 'error', 'message' => 'Bạn không có quyền thực hiện chức năng này'];
         }
 
@@ -142,7 +143,6 @@ class managerController extends Controller
 
         // Format lại mảng
         $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-        $content = str_replace(["array (", ")"], ["[", "]"], $content);
 
         if (file_put_contents($systemConfigPath, $content)) {
             return ['status' => 'success', 'message' => 'Lưu cấu hình thành công'];
@@ -201,7 +201,6 @@ class managerController extends Controller
             $systemConfig['app']['default_template'] = $template;
             
             $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            $content = str_replace(["array (", ")"], ["[", "]"], $content);
             file_put_contents($systemConfigPath, $content);
         }
         
@@ -237,6 +236,7 @@ class managerController extends Controller
                 }
                 $zip->close();
                 
+                disable_output_compression();
                 header('Content-Type: application/zip');
                 header('Content-Disposition: attachment; filename="'.basename($zip_file).'"');
                 header('Content-Length: ' . filesize($zip_file));
@@ -259,8 +259,9 @@ class managerController extends Controller
         
         $base_path = TEMPLATES . $template;
         if (empty($template) || !is_dir($base_path) || !file_exists($base_path . DIRECTORY_SEPARATOR . 'desc.json')) {
-            flash('error', 'Giao diện không tồn tại.');
+            setcookie('manager_templates_error', 'Giao diện không tồn tại.', time() + 5, '/');
             redirect(url('/manager/templates'));
+            return;
         }
 
         // Ngăn chặn Path Traversal
@@ -367,9 +368,14 @@ class managerController extends Controller
         }
         if (!$this->verifyAdminAction('users', 'manager_users_error', '/manager/users')) return;
 
-        $id = $_POST['id'] ?? 0;
+        $id = (int)($_POST['id'] ?? 0);
+        $admin_id = (int)($this->request->user()->user['id'] ?? 0);
         if ($id > 0) {
-            $this->managerModel->ToggleBanUser($id);
+            if ($this->managerModel->ToggleBanUser($id, $admin_id)) {
+                setcookie('manager_users_success', 'Đã cập nhật trạng thái tài khoản thành công!', time() + 5, '/');
+            } else {
+                setcookie('manager_users_error', 'Không thể thực hiện khóa/mở khóa đối với tài khoản này.', time() + 5, '/');
+            }
         }
         $redirect_url = $_SERVER['HTTP_REFERER'] ?? url('/manager/users');
         redirect($redirect_url);
@@ -646,6 +652,7 @@ class managerController extends Controller
         $type = $_POST['rule_type'] ?? '';
         $path = $_POST['rule_path'] ?? '';
         $target = $_POST['rule_target'] ?? '';
+        $method = strtoupper(trim($_POST['rule_method'] ?? 'GET|POST'));
 
         if (empty($path) || substr($path, 0, 1) !== '/') {
             setcookie('manager_url_error', 'Đường dẫn phải bắt đầu bằng dấu /', time() + 5, '/');
@@ -716,7 +723,7 @@ class managerController extends Controller
         if (!$this->verifyAdminAction('url_rules', 'manager_url_error', '/manager/url_rules')) return;
 
         $old_path = $_POST['old_path'] ?? '';
-        $type = $_POST['rule_type'] ?? '';
+        $type = $_POST['rule_type'] ?? 'rewrite';
         $path = $_POST['rule_path'] ?? '';
         $target = $_POST['rule_target'] ?? '';
         $method = $_POST['rule_method'] ?? 'GET|POST';
@@ -724,7 +731,6 @@ class managerController extends Controller
         $type = strtolower(trim($type));
         $path = strtolower(trim($path));
         $target = trim($target);
-        $method = strtoupper(trim($method));
         $method = strtoupper(trim($method));
 
         if (empty($path) || empty($target) || empty($old_path)) {
@@ -754,7 +760,7 @@ class managerController extends Controller
             return;
         }
 
-        $systemPath = APP . 'Configs/autoload/system.php';
+        $systemPath = SYSTEM . 'configs/autoload/system.php';
         if (!file_exists($systemPath)) {
             setcookie('manager_url_error', 'File cấu hình không tồn tại!', time() + 5, '/');
             redirect(url('/manager/url_rules'));
@@ -897,7 +903,8 @@ class managerController extends Controller
         mkdir($modulePath, 0777, true);
         
         $templateFolderName = $name;
-        $templatePath = TEMPLATES . get_template() . '/custom_module/' . $templateFolderName;
+        $activeTpl = ltrim(get_template(), '/\\');
+        $templatePath = TEMPLATES . $activeTpl . '/custom_module/' . $templateFolderName;
         if (!is_dir($templatePath)) {
             mkdir($templatePath, 0777, true);
         }
@@ -965,7 +972,8 @@ class managerController extends Controller
             
             // Delete template dir if exists
             $templateFolderName = $name;
-            $templatePath = TEMPLATES . get_template() . '/custom_module/' . $templateFolderName;
+            $activeTpl = ltrim(get_template(), '/\\');
+            $templatePath = TEMPLATES . $activeTpl . '/custom_module/' . $templateFolderName;
             if (is_dir($templatePath)) {
                 $tfiles = new RecursiveIteratorIterator(
                     new RecursiveDirectoryIterator($templatePath, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -1007,7 +1015,8 @@ class managerController extends Controller
 
         $modulePath = (strpos($name, 'custom_') === 0) ? APP . 'modules/custom_module/' . $name : APP . 'modules/' . $name;
         $templateFolderName = $name;
-        $templatePath = TEMPLATES . get_template() . '/custom_module/' . $templateFolderName;
+        $activeTpl = ltrim(get_template(), '/\\');
+        $templatePath = TEMPLATES . $activeTpl . '/custom_module/' . $templateFolderName;
         
         if (is_dir($modulePath) && strpos($name, 'custom_') === 0) {
             $zipFile = ROOT . 'scratch/' . $name . '.zip';
@@ -1039,7 +1048,7 @@ class managerController extends Controller
                             $filePath = $file->getRealPath();
                             $relativePath = substr($filePath, strlen($templatePath) + 1);
                             // Zip structure: templates/[active_template]/custom_module/[name_without_custom]
-                            $zip->addFile($filePath, 'templates/' . get_template() . '/custom_module/' . $templateFolderName . '/' . str_replace('\\', '/', $relativePath));
+                            $zip->addFile($filePath, 'templates/' . $activeTpl . '/custom_module/' . $templateFolderName . '/' . str_replace('\\', '/', $relativePath));
                         }
                     }
                 }
@@ -1051,12 +1060,13 @@ class managerController extends Controller
                     'author' => $desc_author,
                     'version' => $desc_version,
                     'system_name' => $name,
-                    'template' => get_template()
+                    'template' => $activeTpl
                 ];
                 $zip->addFromString('module.json', json_encode($moduleData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
                 $zip->close();
                 
+                disable_output_compression();
                 header('Content-Type: application/zip');
                 header('Content-disposition: attachment; filename=' . $name . '_package.zip');
                 header('Content-Length: ' . filesize($zipFile));
@@ -1146,8 +1156,9 @@ class managerController extends Controller
             // In the ZIP, files are typically packed under app/modules/... and templates/...
             $app_src = $tmp_dir . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR . 'modules' . DIRECTORY_SEPARATOR . $system_name;
             $templateFolderName = $system_name;
+            $activeTpl = ltrim(get_template(), '/\\');
             // Default template from json or fallback
-            $tpl_name = $moduleData['template'] ?? 'mec';
+            $tpl_name = ltrim($moduleData['template'] ?? $activeTpl, '/\\');
             $tpl_src = $tmp_dir . DIRECTORY_SEPARATOR . 'templates' . DIRECTORY_SEPARATOR . $tpl_name . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $templateFolderName;
             
             if (is_dir($app_src)) {
@@ -1156,7 +1167,7 @@ class managerController extends Controller
                 $this->copyDirSafe($app_src, $app_dest);
             }
             if (is_dir($tpl_src)) {
-                $tpl_dest = TEMPLATES . get_template() . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $templateFolderName;
+                $tpl_dest = TEMPLATES . $activeTpl . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $templateFolderName;
                 // Template ko được chứa php độc hại
                 $this->copyDirSafe($tpl_src, $tpl_dest, true);
             }
@@ -1208,7 +1219,6 @@ class managerController extends Controller
                 if (!in_array($name, $systemConfig['app']['installed_modules'])) {
                     $systemConfig['app']['installed_modules'][] = $name;
                     $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-                    $content = str_replace(["array (", ")"], ["[", "]"], $content);
                     file_put_contents($systemConfigPath, $content);
                 }
 
@@ -1255,7 +1265,6 @@ class managerController extends Controller
                         // Reindex array
                         $systemConfig['app']['installed_modules'] = array_values($systemConfig['app']['installed_modules']);
                         $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-                        $content = str_replace(["array (", ")"], ["[", "]"], $content);
                         file_put_contents($systemConfigPath, $content);
                     }
                 }
@@ -1286,13 +1295,14 @@ class managerController extends Controller
         $version = $_POST['module_desc_version'] ?? '';
         
         if ($name && strpos($name, 'custom_') === 0) {
-            $backend_path = APP . 'modules' . DS . $name;
-            $frontend_path = TEMPLATES . get_template() . DS . 'custom_module' . DS . $name;
+            $activeTpl = ltrim(get_template(), '/\\');
+            $backend_path = APP . 'modules' . DS . 'custom_module' . DS . $name;
+            $frontend_path = TEMPLATES . $activeTpl . DS . 'custom_module' . DS . $name;
             
             // Handle Renaming Module Core
             if (!empty($newName) && $newName !== $name && strpos($newName, 'custom_') === 0) {
-                $new_backend_path = APP . 'modules' . DS . $newName;
-                $new_frontend_path = TEMPLATES . get_template() . DS . 'custom_module' . DS . $newName;
+                $new_backend_path = APP . 'modules' . DS . 'custom_module' . DS . $newName;
+                $new_frontend_path = TEMPLATES . $activeTpl . DS . 'custom_module' . DS . $newName;
                 
                 if (file_exists($new_backend_path)) {
                     setcookie('manager_module_error', 'Mã module mới đã tồn tại!', time() + 5, '/');
@@ -1434,13 +1444,14 @@ class managerController extends Controller
         }
         
         $is_core = in_array(strtolower($name), $this->core_modules);
+        $activeTpl = ltrim(get_template(), '/\\');
 
         if ($is_core) {
             $backend_base = (strpos($name, 'custom_') === 0) ? APP . 'modules' . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $name : APP . 'modules' . DIRECTORY_SEPARATOR . $name;
-            $frontend_base = TEMPLATES . get_template() . DIRECTORY_SEPARATOR . strtolower($name);
+            $frontend_base = TEMPLATES . $activeTpl . DIRECTORY_SEPARATOR . strtolower($name);
         } else {
             $backend_base = (strpos($name, 'custom_') === 0) ? APP . 'modules' . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $name : APP . 'modules' . DIRECTORY_SEPARATOR . $name;
-            $frontend_base = TEMPLATES . get_template() . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $name;
+            $frontend_base = TEMPLATES . $activeTpl . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $name;
         }
 
         if (!is_dir($backend_base) && !$is_core) mkdir($backend_base, 0777, true);
@@ -1629,8 +1640,9 @@ class managerController extends Controller
         }
 
         $templateFolderName = $name;
+        $activeTpl = ltrim(get_template(), '/\\');
         $backend_base = (strpos($name, 'custom_') === 0) ? APP . 'modules' . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $name : APP . 'modules' . DIRECTORY_SEPARATOR . $name;
-        $frontend_base = TEMPLATES . get_template() . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $templateFolderName;
+        $frontend_base = TEMPLATES . $activeTpl . DIRECTORY_SEPARATOR . 'custom_module' . DIRECTORY_SEPARATOR . $templateFolderName;
         $base_path = ($root_type === 'backend') ? $backend_base : $frontend_base;
         $target_path = rtrim($base_path . DIRECTORY_SEPARATOR . ltrim($relative_path, '/\\'), '/\\');
 
@@ -1778,7 +1790,6 @@ class managerController extends Controller
             $systemConfig['security']['rate_limit'] = $rate_limit;
             
             $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            $content = str_replace(["array (", ")"], ["[", "]"], $content);
             file_put_contents($systemConfigPath, $content);
             
             $success = 'Cập nhật cấu hình bảo mật thành công!';
@@ -1933,6 +1944,10 @@ class managerController extends Controller
 
     public function smtp()
     {
+        // RBAC Check
+        if ($this->request->user()->user['level'] < 126) {
+            redirect(url('/manager'));
+        }
         $smtp = config('system.smtp');
         
         if ($this->request->getMethod() === 'POST') {
@@ -1960,16 +1975,7 @@ class managerController extends Controller
             $systemConfig = include($systemFile);
             $systemConfig['smtp'] = $new_smtp;
             
-            $export = var_export($systemConfig, true);
-            $export = preg_replace('/^([ ]*)(.*)/m', '$1$1$2', $export);
-            $export = preg_replace('/^([ ]*)array \(/m', '$1[', $export);
-            $export = preg_replace('/^([ ]*)\)/m', '$1]', $export);
-            $export = preg_replace('/=> 
-[ ]+\[/m', '=> [', $export);
-            $export = str_replace('array (', '[', $export);
-            $export = str_replace(')', ']', $export);
-            
-            $file_content = "<?php\nreturn " . $export . ";\n";
+            $file_content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
             file_put_contents($systemFile, $file_content);
             
             return view('manager/smtp', [
@@ -1989,11 +1995,20 @@ class managerController extends Controller
 
     public function media()
     {
+        // RBAC Check
+        if ($this->request->user()->user['level'] < 120) {
+            redirect(url('/manager'));
+        }
         $page_title = 'Quản lý Tập tin';
-        $action = $this->request->getVar('action', '');
+        $action = $this->request->postVar('action', $this->request->getVar('action', ''));
         
         // Handle deletion
         if ($action === 'delete') {
+            if ($this->request->user()->user['level'] < 121) {
+                redirect(url('/manager/media'));
+                return;
+            }
+            if (!$this->verifyAdminAction('media', 'manager_media_error', '/manager/media')) return;
             $id = $this->request->postVar('id', 0);
             if ($this->managerModel->DeleteFile($id)) {
                 setcookie('manager_media_success', 'Đã xoá tập tin thành công!', time() + 5, '/');
@@ -2036,6 +2051,10 @@ class managerController extends Controller
 
     public function static_page()
     {
+        // RBAC Check
+        if ($this->request->user()->user['level'] < 126) {
+            redirect(url('/manager'));
+        }
         $dir = ROOT . 'templates/_assets/static-page/';
         if (!is_dir($dir)) {
             mkdir($dir, 0777, true);
@@ -2063,6 +2082,10 @@ class managerController extends Controller
 
     public function static_page_add()
     {
+        // RBAC Check
+        if ($this->request->user()->user['level'] < 126) {
+            redirect(url('/manager'));
+        }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $title = $this->request->postVar('title', '');
             $slug = $this->request->postVar('slug', '');
@@ -2093,6 +2116,10 @@ class managerController extends Controller
 
     public function static_page_edit()
     {
+        // RBAC Check
+        if ($this->request->user()->user['level'] < 126) {
+            redirect(url('/manager'));
+        }
         $slug = $this->request->getVar('slug', '');
         $slug = preg_replace('/[^a-zA-Z0-9_-]/', '', $slug);
         $file = ROOT . 'templates/_assets/static-page/' . $slug . '.php';
@@ -2133,20 +2160,12 @@ class managerController extends Controller
 
     public function static_page_delete()
     {
+        // RBAC Check
+        if ($this->request->user()->user['level'] < 126) {
+            redirect(url('/manager'));
+        }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $admin_pass = $this->request->postVar('admin_pass', '');
-            $module_name = $this->request->postVar('module_name', '');
-            $user = $this->request->user()->user;
-            
-            if ($module_name !== 'static_pages') {
-                setcookie('manager_sp_error', 'Tên phân hệ không chính xác!', time() + 5, '/');
-                redirect(url('/manager/static_pages'));
-            }
-
-            if (empty($admin_pass) || empty($user['pass']) || !verify_password_seamless($admin_pass, $user['pass'], $user['id'], Container::get(DB::class))) {
-                setcookie('manager_sp_error', 'Mật khẩu xác nhận không chính xác!', time() + 5, '/');
-                redirect(url('/manager/static_pages'));
-            }
+            if (!$this->verifyAdminAction('static_pages', 'manager_sp_error', '/manager/static_pages')) return;
 
             $slug = $this->request->postVar('slug', '');
             $slug = preg_replace('/[^a-zA-Z0-9_-]/', '', $slug);

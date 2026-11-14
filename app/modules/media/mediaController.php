@@ -151,23 +151,42 @@ class mediaController extends Controller
             die('Chế độ direct bị vô hiệu hoá');
         }
 
+        if (!preg_match('/^[a-zA-Z0-9_-]{10,255}$/', (string)$file_id)) {
+            http_response_code(400);
+            die('Invalid file_id');
+        }
+
         $token = $this->mediaConfig['telegram_bot_token'];
+        if (empty($token) || !preg_match('/^[0-9]+:[a-zA-Z0-9_-]+$/', (string)$token)) {
+            http_response_code(500);
+            die('Invalid Telegram configuration');
+        }
 
         // 1. Lấy file_path
-        $apiUrl = "https://api.telegram.org/bot{$token}/getFile?file_id={$file_id}";
-        $response = file_get_contents($apiUrl);
+        $apiUrl = "https://api.telegram.org/bot{$token}/getFile?file_id=" . rawurlencode($file_id);
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 10,
+                'ignore_errors' => true
+            ]
+        ]);
+        $response = @file_get_contents($apiUrl, false, $ctx);
         if (!$response) {
             http_response_code(404);
             die('File not found');
         }
 
         $data = json_decode($response, true);
-        if (!isset($data['result']['file_path'])) {
+        if (!isset($data['result']['file_path']) || !is_string($data['result']['file_path'])) {
             http_response_code(404);
             die('File not found in Telegram');
         }
 
-        $filePath = $data['result']['file_path'];
+        $filePath = ltrim($data['result']['file_path'], '/');
+        if (strpos($filePath, '..') !== false || !preg_match('/^[a-zA-Z0-9_.\-\/]+$/', $filePath)) {
+            http_response_code(400);
+            die('Invalid Telegram file path');
+        }
         $fileUrl = "https://api.telegram.org/file/bot{$token}/{$filePath}";
 
         $ext = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
@@ -186,6 +205,7 @@ class mediaController extends Controller
         $mime = $mimeTypes[$ext] ?? 'application/octet-stream';
 
         // 2. Stream file
+        disable_output_compression();
         header('Content-Type: ' . $mime);
         header('Content-Disposition: inline; filename="' . basename($file_name) . '"');
         header('Access-Control-Allow-Origin: *');
@@ -198,6 +218,10 @@ class mediaController extends Controller
 
         $ch = curl_init($fileUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+        curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
+        curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_exec($ch);
         curl_close($ch);
         exit;

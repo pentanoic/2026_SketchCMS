@@ -47,7 +47,7 @@ class shoutboxModel extends Model
                         $quoteUrl = '[url=/shoutbox]trò chuyện[/url]';
                     }
                 } elseif ($module === 'articles') {
-                    $stmt_q = $this->db->prepare('SELECT `author`, `blogid` FROM `articles_comments` WHERE `id` = :id');
+                    $stmt_q = $this->db->prepare('SELECT `author`, `blogid` FROM `articles_cmt` WHERE `id` = :id');
                     $stmt_q->execute(['id' => $quoteId]);
                     if ($row = $stmt_q->fetch()) {
                         $quoteAuthorNick = $row['author'];

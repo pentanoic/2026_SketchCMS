@@ -34,7 +34,8 @@ class Template
             'level' => $auth->level,
             'isProfilePage' => false,
             'new_mail_count' => $auth->new_mail_count,
-            'system_notify_count' => $auth->system_notify_count
+            'system_notify_count' => $auth->system_notify_count,
+            'csp_nonce' => csp_nonce()
         ]);
 
         // Load extensions

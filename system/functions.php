@@ -22,6 +22,25 @@ if (!function_exists('_e')) {
     }
 }
 
+if (!function_exists('csp_nonce')) {
+    function csp_nonce(): string
+    {
+        return defined('CSP_NONCE') ? CSP_NONCE : '';
+    }
+}
+
+if (!function_exists('disable_output_compression')) {
+    function disable_output_compression(): void
+    {
+        if (extension_loaded('zlib')) {
+            @ini_set('zlib.output_compression', 'Off');
+        }
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+    }
+}
+
 if (!function_exists('captchaSrc')) {
     /**
      * Get src of captcha image
@@ -211,7 +230,11 @@ if (!function_exists('get_template')) {
             }
             return []; // nếu không có file (dù hiếm)
         }
-        // Luôn sử dụng template từ config (giao diện được chọn trong manager)
+        // Ưu tiên giao diện đang xem trước trong phiên làm việc (nếu hợp lệ)
+        if (!empty($_SESSION['template_preview']) && in_array($_SESSION['template_preview'], $valid_templates)) {
+            return '/' . $_SESSION['template_preview'];
+        }
+        // Sử dụng template từ config (giao diện được chọn trong manager)
         $configured_template = config('system.app.default_template');
         if (empty($configured_template) || !in_array($configured_template, $valid_templates)) {
             $configured_template = $valid_templates[0] ?? 'default';
@@ -543,25 +566,84 @@ if (!function_exists('e_pass')) {
     }
 }
 
+if (!function_exists('hash_password_secure')) {
+    function hash_password_secure(string $password): string
+    {
+        $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
+        return password_hash($password, $algo);
+    }
+}
+
 if (!function_exists('verify_password_seamless')) {
     function verify_password_seamless($input_pass, $db_pass, $user_id, $pdo)
     {
-        // Kiểm tra Bcrypt (Mật khẩu đã được nâng cấp)
+        $algo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_BCRYPT;
+
+        // Kiểm tra Argon2id / Bcrypt (Mật khẩu đã được nâng cấp)
         if (password_verify($input_pass, $db_pass)) {
+            if (password_needs_rehash($db_pass, $algo)) {
+                $new_hash = hash_password_secure($input_pass);
+                $stmt = $pdo->prepare("UPDATE users SET pass = ? WHERE id = ?");
+                $stmt->execute([$new_hash, $user_id]);
+            }
             return true;
         }
 
         // Kiểm tra Fallback MD5 cũ (Seamless Migration)
         $old_hash = e_pass($input_pass);
-        if ($old_hash === $db_pass) {
-            // Nâng cấp tự động sang Bcrypt
-            $new_hash = password_hash($input_pass, PASSWORD_BCRYPT);
+        if (hash_equals((string)$db_pass, (string)$old_hash)) {
+            // Nâng cấp tự động sang Argon2id (hoặc Bcrypt)
+            $new_hash = hash_password_secure($input_pass);
             $stmt = $pdo->prepare("UPDATE users SET pass = ? WHERE id = ?");
             $stmt->execute([$new_hash, $user_id]);
             return true;
         }
 
         return false;
+    }
+}
+
+if (!function_exists('hash_identifier')) {
+    function hash_identifier(string $raw): string
+    {
+        return hash('sha256', $raw);
+    }
+}
+
+if (!function_exists('generate_api_token')) {
+    function generate_api_token(int $userId, int $ttl = 2592000): string
+    {
+        $payload = base64_encode(json_encode([
+            'id'  => $userId,
+            'exp' => time() + $ttl,
+            'jti' => bin2hex(random_bytes(8))
+        ]));
+        $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
+                . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+        $sig = hash_hmac('sha256', $payload, $secret);
+        return $payload . '.' . $sig;
+    }
+}
+
+if (!function_exists('verify_api_token')) {
+    function verify_api_token(string $token): ?array
+    {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) {
+            return null;
+        }
+        [$payloadB64, $sig] = $parts;
+        $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
+                . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+        $expected = hash_hmac('sha256', $payloadB64, $secret);
+        if (!hash_equals($expected, $sig)) {
+            return null;
+        }
+        $data = json_decode(base64_decode($payloadB64, true) ?: '', true);
+        if (!is_array($data) || empty($data['id']) || empty($data['exp']) || $data['exp'] < time()) {
+            return null;
+        }
+        return $data;
     }
 }
 
@@ -595,7 +677,9 @@ if (!function_exists('isCSRFTokenValid')) {
     function isCSRFTokenValid($token)
     {
         $output = null;
-        $isCSRFTokenValid = isset($_SESSION['csrf_token']) && $token === $_SESSION['csrf_token'];
+        $isCSRFTokenValid = isset($_SESSION['csrf_token'])
+            && is_string($token)
+            && hash_equals((string)$_SESSION['csrf_token'], $token);
         if (!$isCSRFTokenValid) {
             $output = 'error';
         }
@@ -693,21 +777,27 @@ if (!function_exists('checkDarkMode')) {
 if (!function_exists('checkIpFlood')) {
     function checkIpFlood($ip, $router)
     {
-        $url = "https://ipinfo.io/{$ip}/json";
-        $response = @file_get_contents($url);
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            $router->add('/register', 'UserController@register', 'GET|POST');
+            return;
+        }
+        $ctx = stream_context_create([
+            'http' => [
+                'timeout' => 2,
+                'ignore_errors' => true
+            ]
+        ]);
+        $url = "https://ipinfo.io/" . rawurlencode($ip) . "/json";
+        $response = @file_get_contents($url, false, $ctx);
         if ($response === FALSE) {
-            die("Không thể kết nối tới ipinfo.io.");
+            return;
         }
         $data = json_decode($response, true);
         if (isset($data['country'])) {
             $southeastAsiaCountries = ['ID', 'MY', 'SG', 'TH', 'PH', 'BN', 'KH', 'LA', 'MM', 'TL', 'VN'];
-            if (in_array($data['country'], $southeastAsiaCountries)) {
+            if (in_array($data['country'], $southeastAsiaCountries, true)) {
                 $router->add('/register', 'UserController@register', 'GET|POST');
-                #} else {
-                #    die("Welcome to Dorew!");
             }
-            #} else {
-            #    die("Welcome to Dorew!");
         }
     }
 }

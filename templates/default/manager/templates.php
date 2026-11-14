@@ -8,6 +8,13 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Giao
     </h5>
 </div>
 
+<?php if (isset($_COOKIE['manager_templates_error'])): ?>
+    <div class="alert alert-danger">
+        <i class="fa fa-exclamation-triangle"></i> <?= $_COOKIE['manager_templates_error'] ?>
+    </div>
+    <?php setcookie('manager_templates_error', '', time() - 3600, '/'); ?>
+<?php endif; ?>
+
 <div class="row">
     <?php foreach ($templates as $tpl): ?>
         <div class="col-md-6 col-lg-4 mb-4">

@@ -33,12 +33,13 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Tậ
                     <th class="border-top-0">Kích thước</th>
                     <th class="border-top-0">Bài viết gốc</th>
                     <th class="border-top-0 text-center">Người đăng</th>
+                    <th class="border-top-0 text-right">Hành động</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($files)): ?>
                 <tr>
-                    <td colspan="6" class="text-center py-4 text-muted">
+                    <td colspan="7" class="text-center py-4 text-muted">
                         <i class="fa fa-folder-open-o fa-3x mb-2" style="opacity: 0.5;"></i>
                         <p class="mb-0">Chưa có tập tin nào trên hệ thống.</p>
                     </td>
@@ -86,6 +87,11 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Tậ
                             ];
                             echo RoleColor($userDetail, 'html');
                             ?>
+                        </td>
+                        <td class="align-middle text-right">
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= (int)$file['id'] ?>, '<?= _e(addslashes($file['filename'])) ?>')" title="Xóa">
+                                <i class="fa fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -154,9 +160,18 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Tậ
                 <h5 class="modal-title"><i class="fa fa-exclamation-triangle"></i> Xác nhận xóa</h5>
                 <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
             </div>
-            <div class="modal-body py-4 text-center">
-                <p class="mb-0" style="font-size:16px;">Bạn có chắc chắn muốn xóa tập tin <strong id="delete_file_name" class="text-danger"></strong> không?</p>
-                <small class="text-muted d-block mt-2">Hành động này sẽ xóa dữ liệu trên hệ thống và không thể hoàn tác.</small>
+            <div class="modal-body py-4">
+                <p class="mb-0 text-center" style="font-size:16px;">Bạn có chắc chắn muốn xóa tập tin <strong id="delete_file_name" class="text-danger"></strong> không?</p>
+                <small class="text-muted d-block mt-2 mb-3 text-center">Hành động này sẽ xóa dữ liệu trên hệ thống và không thể hoàn tác.</small>
+                <hr>
+                <div class="mb-3">
+                    <label class="font-weight-bold text-danger">Tên phân hệ (Nhập <code>media</code>)</label>
+                    <input type="text" name="module_name" class="form-control" placeholder="media" required autocomplete="off">
+                </div>
+                <div class="mb-0">
+                    <label class="font-weight-bold">Mật khẩu Admin của bạn</label>
+                    <input type="password" name="admin_pass" class="form-control" placeholder="Mật khẩu Admin" required>
+                </div>
             </div>
             <div class="modal-footer border-top-0 bg-light">
                 <button type="button" class="btn btn-secondary px-4" data-dismiss="modal">Hủy</button>

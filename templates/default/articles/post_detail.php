@@ -100,7 +100,7 @@
                     <a href="/articles/post-<?= $PostDetail['id'] ?>/upload" class="dw-btn dw-btn-ghost dw-btn-sm"><i class="fa fa-cloud-upload"></i> Tải file</a>
                     <a href="/articles/post-<?= $PostDetail['id'] ?>/add-chap" class="dw-btn dw-btn-ghost dw-btn-sm"><i class="fa fa-plus"></i> Chương</a>
 
-                    <?php if (isset($isAdminForum) && $isAdminForum): ?>
+                    <?php if (isset($isAdminArticles) && $isAdminArticles): ?>
                         <div style="margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap;">
                             <a href="?mod=<?= $ActionLock ?>" class="dw-btn dw-btn-ghost dw-btn-sm"><?= $ActionLockName ?></a>
                             <a href="?mod=<?= $ActionPin ?>" class="dw-btn dw-btn-ghost dw-btn-sm"><?= $ActionPinName ?></a>

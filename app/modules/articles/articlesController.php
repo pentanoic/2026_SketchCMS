@@ -317,7 +317,7 @@ class articlesController extends Controller
                 $ActionPinName = '<i class="fa fa-thumb-tack" aria-hidden="true"></i> Ghim chủ đề';
             }
             if ($this->request->user()->isLogin) {
-                if ($MyDetail['level'] >= 120 && $MyDetail['level'] > $UserDetail['level']) {
+                if ($MyDetail['level'] >= 120 && $MyDetail['level'] > $UserDetail['level'] || $MyDetail['level'] >= 127 ) {
                     $isAdminArticles = true;
                     if ($mod == 'unlock' && $PostDetail['blocked'] == 1) {
                         $this->articlesModel->PostSaveOne($id, 'blocked', 0);
@@ -334,11 +334,11 @@ class articlesController extends Controller
                     }
                 }
                 if ($mod == 'unpin' && $PostDetail['sticked'] == 1 || $mod == 'pin' && $PostDetail['sticked'] == 0) {
-                    echo "<script>setTimeout(function (){
+                    echo '<script nonce="' . _e(csp_nonce()) . '">setTimeout(function (){
                             const urlWithoutQuery = window.location.origin + window.location.pathname;
                             window.location.href = urlWithoutQuery;
                         }, 2000);
-                    </script>";
+                    </script>';
                 }
             }
         } else {
@@ -957,12 +957,16 @@ class articlesController extends Controller
                     unsetCSRFToken();
                     generateCSRFToken();
 
-                    if ($MyDetail['xu'] < $FileDetail['price']) {
+                    if ($MyDetail['xu'] < $FileDetail['price'] || $FileDetail['price'] < 0) {
                         $error = 'Tài sản của bạn không đủ để thực hiện thao tác này';
                     }
                     if (!$error) {
-                        $this->articlesModel->FileBuy($FileDetail, $MyDetail);
-                        redirect('/view-file/' . $FileDetail['id']);
+                        $buyStatus = $this->articlesModel->FileBuy($FileDetail, $MyDetail);
+                        if ($buyStatus === 'InsufficientFunds') {
+                            $error = 'Tài sản của bạn không đủ để thực hiện thao tác này';
+                        } else {
+                            redirect('/view-file/' . $FileDetail['id']);
+                        }
                     }
                 }
             }

@@ -82,15 +82,32 @@ class Kernel
         }
 
         if ($callable) {
-            // Global CSRF Shield
+            // Global CSRF & Rate Limit Shield
             if ($request->getMethod() === 'POST') {
-                if (isCSRFTokenValid($_POST['csrf_token'] ?? '') === 'error') {
-                    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
-                        header('Content-Type: application/json');
-                        echo json_encode(['status' => 'error', 'message' => 'CSRF Token không hợp lệ. Vui lòng tải lại trang!']);
-                        exit;
+                $isApiRoute = strpos($routeWithSlash, '/api/') === 0;
+                $headers = function_exists('getallheaders') ? getallheaders() : [];
+                $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+                $csrfHeader = $headers['X-CSRF-Token'] ?? $headers['x-csrf-token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+                $csrfTokenInput = $_POST['csrf_token'] ?? $csrfHeader;
+
+                $hasBearerAuth = $isApiRoute && preg_match('/Bearer\s+\S+/i', $authHeader);
+                $isPublicAuthApi = $isApiRoute && in_array($routeWithSlash, [
+                    '/api/v1/auth/login',
+                    '/api/v1/auth/register',
+                    '/api/v1/auth/password/forgot',
+                    '/api/v1/auth/password/reset'
+                ], true);
+
+                if (!$hasBearerAuth && !$isPublicAuthApi) {
+                    if (isCSRFTokenValid($csrfTokenInput) === 'error') {
+                        if ($isApiRoute || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest')) {
+                            header('Content-Type: application/json; charset=utf-8');
+                            http_response_code(403);
+                            echo json_encode(['status' => 'error', 'message' => 'CSRF Token không hợp lệ. Vui lòng tải lại trang!'], JSON_UNESCAPED_UNICODE);
+                            exit;
+                        }
+                        die('CSRF Token Error: Hành động không hợp lệ hoặc đã hết hạn. Vui lòng quay lại và tải lại trang.');
                     }
-                    die('CSRF Token Error: Hành động không hợp lệ hoặc đã hết hạn. Vui lòng quay lại và tải lại trang.');
                 }
                 
                 // Rate Limiting (API4): Giới hạn tần suất POST (Anti-Spam/DDoS)
@@ -101,9 +118,10 @@ class Kernel
                 $isManager = (isset($callable['callback']['controller']) && $callable['callback']['controller'] === 'managerController') || strpos($routeWithSlash, '/manager') === 0;
                 
                 if (!$isManager && $rate_limit_seconds > 0 && !checkRateLimit('global_post', $rate_limit_seconds)) {
-                    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
-                        header('Content-Type: application/json');
-                        echo json_encode(['status' => 'error', 'message' => 'Thao tác quá nhanh. Vui lòng chờ ' . $rate_limit_seconds . ' giây!']);
+                    if ($isApiRoute || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest')) {
+                        header('Content-Type: application/json; charset=utf-8');
+                        http_response_code(429);
+                        echo json_encode(['status' => 'error', 'message' => 'Thao tác quá nhanh. Vui lòng chờ ' . $rate_limit_seconds . ' giây!'], JSON_UNESCAPED_UNICODE);
                         exit;
                     }
                     $_SESSION['global_toast_error'] = 'Rate Limit Exceeded: Bạn thao tác quá nhanh, vui lòng chờ ít nhất ' . $rate_limit_seconds . ' giây trước khi thử lại.';
@@ -133,6 +151,7 @@ class Kernel
                     header('Content-Type: application/json');
                     echo json_encode($result);
                 } elseif ($result instanceof GdImage) {
+                    disable_output_compression();
                     header('Content-Type: image/png');
                     imagepng($result);
                     imagedestroy($result);

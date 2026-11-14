@@ -95,31 +95,45 @@ class articlesModel extends Model
 
     public function ForumDetailWithFields($table = null, $fields = null, $value = null)
     {
-        if (!$table || !$fields || !$value) {
+        if (!$table || !$fields || $value === null || $value === '') {
             return null;
-            exit();
+        }
+        $allowedTables = [
+            'articles_post', 'articles_category', 'articles_cmt', 'articles_chap',
+            'articles_file', 'articles_tags', 'articles_post_tags',
+            'users', 'users_waifu', 'chat', 'mail'
+        ];
+        if (!in_array($table, $allowedTables, true) || !preg_match('/^[a-zA-Z0-9_]+$/', (string)$fields)) {
+            return null;
         }
 
-        $output = [];
-        $stmt = $this->db->prepare('SELECT * FROM ' . $table . ' WHERE ' . $fields . ' = :value LIMIT 1');
+        $stmt = $this->db->prepare("SELECT * FROM `$table` WHERE `$fields` = :value LIMIT 1");
         $stmt->execute(['value' => $value]);
         $output = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $output;
+        return $output ?: null;
     }
 
     public function ForumCheckExists($table = null, $fields = null, $value = null)
     {
-        if (!$table || !$fields || !$value) {
-            return null;
-            exit();
+        if (!$table || !$fields || $value === null || $value === '') {
+            return false;
+        }
+        $allowedTables = [
+            'articles_post', 'articles_category', 'articles_cmt', 'articles_chap',
+            'articles_file', 'articles_tags', 'articles_post_tags',
+            'users', 'users_waifu', 'chat', 'mail'
+        ];
+        if (!in_array($table, $allowedTables, true) || !preg_match('/^[a-zA-Z0-9_]+$/', (string)$fields)) {
+            return false;
         }
 
         $stmt = $this->db->prepare("
             SELECT EXISTS(
-                SELECT 1 FROM $table WHERE $fields = :value
+                SELECT 1 FROM `$table` WHERE `$fields` = :value
             ) AS exists_flag
         ");
-        $stmt->bindParam(':value', $value, \PDO::PARAM_INT);
+        $paramType = is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
+        $stmt->bindValue(':value', $value, $paramType);
         $stmt->execute();
         $exists = $stmt->fetchColumn(); // lấy giá trị exists_flag (0 hoặc 1)
         return (bool) $exists;
@@ -382,8 +396,8 @@ class articlesModel extends Model
         $stmt = $this->db->prepare("SELECT * FROM $this->PostTable WHERE id = :id LIMIT 1");
         $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
         $stmt->execute();
-        $output = $stmt->fetchAll()[0];
-        return $output;
+        $output = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $output ?: null;
     }
 
     public function PostLikeList($id, $action = null)
@@ -448,7 +462,11 @@ class articlesModel extends Model
 
     public function PostSaveOne($id, $col, $cold_val)
     {
-        $stmt = $this->db->prepare("UPDATE ".$this->PostTable." SET `" . $col . "` = :col_value WHERE `id` = :id");
+        $allowedCols = ['blocked', 'sticked', 'view', 'category', 'title', 'slug', 'content', 'update_time', 'meta_data'];
+        if (!in_array($col, $allowedCols, true)) {
+            return 0;
+        }
+        $stmt = $this->db->prepare("UPDATE `$this->PostTable` SET `$col` = :col_value WHERE `id` = :id");
         $stmt->bindValue(':col_value', $cold_val, \PDO::PARAM_STR);
         $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
         $stmt->execute();
@@ -683,7 +701,7 @@ class articlesModel extends Model
                         $quoteUrl = '[url=/shoutbox]trò chuyện[/url]';
                     }
                 } elseif ($module === 'articles') {
-                    $stmt_q = $this->db->prepare('SELECT `author`, `blogid` FROM `articles_comments` WHERE `id` = :id');
+                    $stmt_q = $this->db->prepare('SELECT `author`, `blogid` FROM `articles_cmt` WHERE `id` = :id');
                     $stmt_q->execute(['id' => $quoteId]);
                     if ($row = $stmt_q->fetch()) {
                         $quoteAuthorNick = $row['author'];
@@ -774,13 +792,32 @@ class articlesModel extends Model
 
     public function FileBuy($FileDetail, $MyDetail)
     {
-        // trừ xu của chủ đầu tư
-        $stmtPurchaser = $this->db->prepare('UPDATE `users` SET `xu` = :xu WHERE `nick` = :nick');
+        $price = max(0, (int)($FileDetail['price'] ?? 0));
+        $boughtList = $this->FilePurchaserList($FileDetail['id']);
+        if (in_array($MyDetail['nick'], $boughtList, true)) {
+            return 'AlreadyBought';
+        }
+
+        // Trừ xu nguyên tử (atomic check xu >= price)
+        $stmtPurchaser = $this->db->prepare('UPDATE `users` SET `xu` = `xu` - :price WHERE `nick` = :nick AND `xu` >= :price');
         $stmtPurchaser->execute([
-            'xu' => ($MyDetail['xu'] - $FileDetail['price']),
+            'price' => $price,
             'nick' => $MyDetail['nick']
         ]);
-        // thêm chủ đầu tư vào danh sách đã mua
+        if ($stmtPurchaser->rowCount() === 0) {
+            return 'InsufficientFunds';
+        }
+
+        // Cộng xu cho tác giả tập tin
+        if ($price > 0 && !empty($FileDetail['author']) && $FileDetail['author'] !== $MyDetail['nick']) {
+            $stmtAuthor = $this->db->prepare('UPDATE `users` SET `xu` = `xu` + :price WHERE `nick` = :author');
+            $stmtAuthor->execute([
+                'price' => $price,
+                'author' => $FileDetail['author']
+            ]);
+        }
+
+        // Thêm chủ đầu tư vào danh sách đã mua
         $stmtFile = $this->db->prepare("UPDATE `$this->FileTable` SET `mua` = :mua WHERE `id` = :id");
         $stmtFile->execute([
             'id' => $FileDetail['id'],

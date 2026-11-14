@@ -98,9 +98,11 @@ $my_id = $user['id'] ?? 0;
                                 <?php if ($can_modify): ?>
                                     <div class="d-inline-flex" style="gap: 5px;">
                                         <?php if ($can_modify): ?>
+                                            <?php if ($u['id'] != $my_id): ?>
                                             <button type="button" class="dw-btn dw-btn-sm" style="background: <?= $is_banned ? 'rgba(40, 167, 69, 0.1)' : 'rgba(255, 77, 79, 0.1)' ?>; color: <?= $is_banned ? '#28a745' : '#ff4d4f' ?>; border: 1px solid <?= $is_banned ? 'rgba(40, 167, 69, 0.2)' : 'rgba(255, 77, 79, 0.2)' ?>;" data-toggle="modal" data-target="#banUserModal<?= $u['id'] ?>" title="<?= $is_banned ? 'Mở khóa' : 'Khóa' ?>">
                                                 <i class="fa <?= $is_banned ? 'fa-unlock' : 'fa-lock' ?>"></i>
                                             </button>
+                                            <?php endif; ?>
                                         
                                             <button type="button" class="dw-btn dw-btn-sm" style="background: var(--surface-muted); color: var(--primary); border: 1px solid var(--border);" data-toggle="modal" data-target="#editUserModal<?= $u['id'] ?>" title="Chỉnh sửa thông tin">
                                                 <i class="fa fa-pencil"></i>
@@ -182,9 +184,10 @@ $my_id = $user['id'] ?? 0;
     <?php foreach ($users as $u): ?>
         <?php
         $is_banned = ($u['level'] < 0);
-        $can_modify = ($my_level >= 126 || $u['level'] < $my_level);
+        $can_modify = ($my_level > $u['level'] || $u['id'] == $my_id);
         ?>
         <?php if ($can_modify): ?>
+        <?php if ($u['id'] != $my_id): ?>
         <!-- Modal Ban/Unban User -->
         <div class="modal fade text-left" id="banUserModal<?= $u['id'] ?>" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
@@ -213,6 +216,7 @@ $my_id = $user['id'] ?? 0;
                 </form>
             </div>
         </div>
+        <?php endif; ?>
 
         <!-- Modal Edit User -->
         <div class="modal fade text-left" id="editUserModal<?= $u['id'] ?>" tabindex="-1" aria-hidden="true">

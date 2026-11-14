@@ -186,9 +186,9 @@ class mailController extends Controller
         }
 
         // đánh dấu là đã đọc
-        $viewClosure = function ($mail_id) {
+        $viewClosure = function ($mail_id) use ($SenderDetail) {
             $self = $this;
-            return $self->mailModel->MailViewUpdate($mail_id);
+            return $self->mailModel->MailViewUpdate($mail_id, $SenderDetail['nick']);
         };
 
         return view()

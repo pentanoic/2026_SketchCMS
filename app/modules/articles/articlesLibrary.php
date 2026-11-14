@@ -133,17 +133,14 @@ class articlesLibrary extends Library
     {
         if (empty($string)) {
             return null;
-            exit();
         }
         $arr_emo_name = ['ami', 'anya', 'aru', 'aka', 'dauhanh', 'dora', 'le', 'menhera', 'moew', 'nam', 'pepe', 'qoobee', 'qoopepe', 'thobaymau', 'troll', 'dui', 'firefox', 'conan'];
         foreach ($arr_emo_name as $emo_name) {
             if (strpos($string, ':' . $emo_name) !== false) {
                 $parttern = '/[:]' . $emo_name . '([0-9]*):/';
                 $image_url = 'https://dorew-site.github.io/assets/smileys/' . $emo_name . '/' . $emo_name . '$1.png';
-                if (@getimagesize($image_url)) {
-                    $replacement = '<img loading="lazy" src="' . $image_url . '" alt="$1"/>';
-                    $string = preg_replace($parttern, $replacement, $string);
-                }
+                $replacement = '<img loading="lazy" src="' . $image_url . '" alt="$1"/>';
+                $string = preg_replace($parttern, $replacement, $string);
             }
         }
         return $string;
@@ -197,13 +194,24 @@ class articlesLibrary extends Library
         $type1 = 'b|u|s|i|strong|em';
         $string = preg_replace('/\[(' . $type1 . ')\](.*?)\[\/\1\]/is', '<$1>$2</$1>', $string);
 
-        // Các thẻ bb nhiều tham số
-        $type2 = [
-            '/\[color=(.*?)\](.*?)\[\/color\]/is' => '<span style="color:$1">$2</span>',
-            '/\[bcolor=(.*?)\](.*?)\[\/bcolor\]/is' => '<span style="color:$1;font-weight:700">$2</span>',
-            '/\[quote=(.*?)\](.*?)\[\/quote\]/is' => '<div class="quote"><div class="quote-title">Quote from <b>$1</b></div><div class="quote-content">$2</div></div>',
-            '/\[size=(.*?)\](.*?)\[\/size\]/is' => '<span style="font-size:$1px">$2</span>',
-        ];
+        // Các thẻ bb nhiều tham số (đã lọc XSS)
+        $string = preg_replace_callback('/\[color=([a-zA-Z0-9#(),.\s%-]{1,32})\](.*?)\[\/color\]/is', function ($m) {
+            $color = htmlspecialchars(trim($m[1]), ENT_QUOTES, 'UTF-8');
+            return '<span style="color:' . $color . '">' . $m[2] . '</span>';
+        }, $string);
+        $string = preg_replace_callback('/\[bcolor=([a-zA-Z0-9#(),.\s%-]{1,32})\](.*?)\[\/bcolor\]/is', function ($m) {
+            $color = htmlspecialchars(trim($m[1]), ENT_QUOTES, 'UTF-8');
+            return '<span style="color:' . $color . ';font-weight:700">' . $m[2] . '</span>';
+        }, $string);
+        $string = preg_replace_callback('/\[quote=(.*?)\](.*?)\[\/quote\]/is', function ($m) {
+            $author = htmlspecialchars(trim($m[1]), ENT_QUOTES, 'UTF-8');
+            return '<div class="quote"><div class="quote-title">Quote from <b>' . $author . '</b></div><div class="quote-content">' . $m[2] . '</div></div>';
+        }, $string);
+        $string = preg_replace_callback('/\[size=(\d{1,2})\](.*?)\[\/size\]/is', function ($m) {
+            $size = max(8, min(36, (int)$m[1]));
+            return '<span style="font-size:' . $size . 'px">' . $m[2] . '</span>';
+        }, $string);
+
         $type3 = [
             '/\[red\](.*?)\[\/red\]/is' => '<span style="color:red">$1</span>',
             '/\[blue\](.*?)\[\/blue\]/is' => '<span style="color:blue">$1</span>',
@@ -220,8 +228,7 @@ class articlesLibrary extends Library
             '/\[left\](.*?)\[\/left\]/is' => '<div style="text-align:left">$1</div>',
             '/\[justify\](.*?)\[\/justify\]/is' => '<div style="text-align:justify">$1</div>',
         ];
-        $sim = array_merge($type2, $type3);
-        $string = preg_replace(array_keys($sim), array_values($sim), $string);
+        $string = preg_replace(array_keys($type3), array_values($type3), $string);
 
         // tag @nick
         $string = preg_replace_callback('/@([a-zA-Z0-9_]+)/', function ($matches) {
@@ -265,7 +272,7 @@ class articlesLibrary extends Library
                         $quoteContent = preg_replace('/@\[module=.*?;quote=.*?\]/', '[quote]', $raw_comment);
                     }
                 } elseif ($module === 'articles') {
-                    $stmt = $db->prepare('SELECT `author`, `comment` FROM `articles_comments` WHERE `id` = :id');
+                    $stmt = $db->prepare('SELECT `author`, `comment` FROM `articles_cmt` WHERE `id` = :id');
                     $stmt->execute(['id' => $quoteId]);
                     if ($data = $stmt->fetch()) {
                         $quoteTitle = 'Trích dẫn từ <b>' . _e($data['author']) . '</b>';
@@ -325,14 +332,24 @@ class articlesLibrary extends Library
         );
 
         // xử lý video
-        $parttern = '/\[vid\](.*?)\[\/vid\]/';
-        $replacement = '<div class="video-wrapper" style="text-align:center;"><iframe loading="lazy" src="/plugin/video_embed?link=$1" height="315" width="560" scrolling="no" allowfullscreen="" frameborder="0"></iframe></div>';
-        $string = preg_replace($parttern, $replacement, $string);
+        $string = preg_replace_callback('/\[vid\](.*?)\[\/vid\]/', function ($matches) {
+            $link = trim($matches[1]);
+            if (preg_match('/^(javascript|vbscript|data):/i', $link)) {
+                return '[Cảnh báo: Video chứa mã độc]';
+            }
+            $encoded = rawurlencode($link);
+            return '<div class="video-wrapper" style="text-align:center;"><iframe loading="lazy" src="/plugin/video_embed?link=' . $encoded . '" height="315" width="560" scrolling="no" allowfullscreen="" frameborder="0"></iframe></div>';
+        }, $string);
 
         // xử lý thẻ download
-        $parttern = '/\[d\](.*?)\[\/d\]/';
-        $replacement = '<center><a href="$1"><button class="btn btn-primary"><i class="fa fa-download"></i> Download</button></a></center>';
-        $string = preg_replace($parttern, $replacement, $string);
+        $string = preg_replace_callback('/\[d\](.*?)\[\/d\]/', function ($matches) {
+            $url = trim($matches[1]);
+            if (preg_match('/^(javascript|vbscript|data):/i', $url)) {
+                return '[Cảnh báo: Liên kết tải về chứa mã độc]';
+            }
+            $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+            return '<center><a href="' . $safeUrl . '" rel="nofollow noopener"><button class="btn btn-primary"><i class="fa fa-download"></i> Download</button></a></center>';
+        }, $string);
 
         // xử lý link
         $string = preg_replace_callback('/\[url=(.*?)\](.*?)\[\/url\]/', function ($matches) {

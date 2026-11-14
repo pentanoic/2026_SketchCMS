@@ -255,7 +255,6 @@
     </div>
 </div>
 
-
 <!-- STATS -->
 <div class="dw-card" role="stats">
     <?php if ($isLogin && $ForumStats['count_online'] > 0): ?>

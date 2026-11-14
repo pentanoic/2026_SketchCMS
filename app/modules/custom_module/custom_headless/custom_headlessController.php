@@ -43,10 +43,30 @@ class custom_headlessController extends Controller
         header('Content-Type: application/json; charset=utf-8');
         // Cho phép CORS nếu cần thiết cho Headless CMS
         header('Access-Control-Allow-Origin: *');
-        header('Access-Control-Allow-Headers: Authorization, Content-Type');
+        header('Access-Control-Allow-Headers: Authorization, Content-Type, X-CSRF-Token');
 
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    /**
+     * Helper: Loại bỏ các trường nhạy cảm khỏi dữ liệu người dùng (API3 - BOPLA)
+     */
+    private function sanitizeUser(array $u): array
+    {
+        unset(
+            $u['pass'],
+            $u['reset_token'],
+            $u['reset_expires'],
+            $u['remember_token'],
+            $u['failed_logins'],
+            $u['lock_time'],
+            $u['new_mail'],
+            $u['mail_list'],
+            $u['blocklist'],
+            $u['login']
+        );
+        return $u;
     }
 
     /**
@@ -54,24 +74,35 @@ class custom_headlessController extends Controller
      */
     private function authenticate()
     {
-        global $user;
-
         // 1. Kiểm tra qua Cookie Session (dành cho client web gọi API)
-        if (isset($user) && isset($user['id'])) {
-            return $user;
+        if ($this->request->user()->isLogin && !empty($this->request->user()->user['id'])) {
+            $sessionUser = $this->request->user()->user;
+            if ((int)($sessionUser['level'] ?? 0) < 0) {
+                $this->jsonResponse(['status' => 'error', 'message' => 'Account suspended'], 403);
+            }
+            return $sessionUser;
         }
 
         // 2. Kiểm tra qua Token (Header Authorization: Bearer <token>)
         $headers = function_exists('getallheaders') ? getallheaders() : [];
-        $authHeader = isset($headers['Authorization']) ? $headers['Authorization'] : '';
+        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
 
-        if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        if (preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
             $token = $matches[1];
-            // TODO: Ở đây có thể kiểm tra token từ DB (ví dụ bảng `api_tokens`)
-            // Tạm thời nếu sử dụng token giả lập thì check như sau:
-            if ($token === config('system.api_token')) {
-                // Return 1 user giả lập hoặc lấy user theo token
-                return ['id' => 1, 'nick' => 'admin', 'level' => 100]; // VD
+            $payload = verify_api_token($token);
+            if ($payload && !empty($payload['id'])) {
+                $dbUser = $this->userModel->UserDetailWithFields('id', (int)$payload['id']);
+                if ($dbUser && (int)($dbUser['level'] ?? 0) >= 0) {
+                    return $dbUser;
+                }
+            }
+
+            $staticToken = config('system.api_token');
+            if (!empty($staticToken) && is_string($staticToken) && hash_equals($staticToken, $token)) {
+                $adminUser = $this->userModel->UserDetailWithFields('id', 1);
+                if ($adminUser) {
+                    return $adminUser;
+                }
             }
         }
 
@@ -164,8 +195,8 @@ class custom_headlessController extends Controller
     public function login()
     {
         $data = $this->getRequestData();
-        $account = $data['account'] ?? '';
-        $password = $data['password'] ?? '';
+        $account = trim((string)($data['account'] ?? ''));
+        $password = (string)($data['password'] ?? '');
 
         if (empty($account) || empty($password)) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Missing account or password'], 400);
@@ -174,19 +205,39 @@ class custom_headlessController extends Controller
         $type = filter_var($account, FILTER_VALIDATE_EMAIL) ? 'email' : 'nick';
         $userLogin = $this->userModel->getForLogin($type, $account);
 
-        if (!$userLogin || !password_verify($password, $userLogin['pass'])) {
+        if (!$userLogin) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Invalid credentials'], 401);
         }
 
-        // Tạo JWT Token giả lập hoặc token tự chế (để demo, bạn có thể thay bằng thư viện JWT thật)
-        $token = base64_encode(json_encode(['id' => $userLogin['id'], 'exp' => time() + 86400 * 30]));
+        if ((int)($userLogin['lock_time'] ?? 0) > time()) {
+            $waitMin = ceil(($userLogin['lock_time'] - time()) / 60);
+            $this->jsonResponse([
+                'status' => 'error',
+                'message' => "Account is temporarily locked due to too many failed login attempts. Try again in {$waitMin} minute(s)."
+            ], 423);
+        }
+
+        if (!verify_password_seamless($password, $userLogin['pass'], $userLogin['id'], Container::get(DB::class))) {
+            $this->userModel->recordLoginFailure($userLogin);
+            $this->jsonResponse(['status' => 'error', 'message' => 'Invalid credentials'], 401);
+        }
+
+        if ((int)($userLogin['failed_logins'] ?? 0) > 0 || (int)($userLogin['lock_time'] ?? 0) > 0) {
+            $this->userModel->resetLoginFailures((int)$userLogin['id']);
+        }
+
+        if ((int)($userLogin['level'] ?? 0) < 0) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Account suspended'], 403);
+        }
+
+        $token = generate_api_token((int)$userLogin['id'], 86400 * 30);
 
         $this->jsonResponse([
             'status' => 'success',
             'message' => 'Login successful',
             'data' => [
                 'token' => $token,
-                'user_id' => $userLogin['id']
+                'user_id' => (int)$userLogin['id']
             ]
         ]);
     }
@@ -196,13 +247,32 @@ class custom_headlessController extends Controller
      */
     public function register()
     {
+        $disabledRoutes = config('system.url_rules.disable', []);
+        if (in_array('/register', $disabledRoutes, true) || in_array('register', $disabledRoutes, true)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Registration is currently disabled'], 403);
+        }
+
+        if (!checkRateLimit('api_register', 10)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Too many registration attempts. Please wait.'], 429);
+        }
+
         $data = $this->getRequestData();
-        $account = $data['account'] ?? '';
-        $email = $data['email'] ?? '';
-        $password = $data['password'] ?? '';
+        $account = mb_strtolower(trim((string)($data['account'] ?? '')));
+        $email = mb_strtolower(trim((string)($data['email'] ?? '')));
+        $password = (string)($data['password'] ?? '');
 
         if (empty($account) || empty($email) || empty($password)) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Missing required fields'], 400);
+        }
+
+        if (!preg_match('/^[a-z0-9_]{3,20}$/', $account)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Invalid account format'], 400);
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Invalid email format'], 400);
+        }
+        if (strlen($password) < 6 || strlen($password) > 32) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Password must be between 6 and 32 characters'], 400);
         }
 
         $check = $this->userModel->checkUsedInfo($account, $email);
@@ -210,19 +280,22 @@ class custom_headlessController extends Controller
             $this->jsonResponse(['status' => 'error', 'message' => 'Account or email already exists'], 409);
         }
 
+        $sex = in_array($data['sex'] ?? '', ['boy', 'girl'], true) ? $data['sex'] : 'girl';
+
         // Tạo user mới
         $user = [
             'nick' => $account,
             'email' => $email,
-            'pass' => password_hash($password, PASSWORD_DEFAULT),
+            'pass' => $password,
             'name' => $account,
+            'sex' => $sex,
             'reg_date' => time()
         ];
         
         $newUserId = $this->userModel->register($user);
 
         if ($newUserId) {
-            $this->jsonResponse(['status' => 'success', 'message' => 'Registered successfully', 'user_id' => $newUserId]);
+            $this->jsonResponse(['status' => 'success', 'message' => 'Registered successfully', 'user_id' => (int)$newUserId]);
         } else {
             $this->jsonResponse(['status' => 'error', 'message' => 'Failed to register'], 500);
         }
@@ -230,18 +303,18 @@ class custom_headlessController extends Controller
 
     public function docs()
     {
-        $this->view('custom_module/custom_headless/index', ['page_title' => 'Tài liệu API Headless']);
+        return view('custom_module/custom_headless/index', ['page_title' => 'Tài liệu API Headless']);
     }
-        /**
+    /**
      * GET /api/v1/users
      */
     public function getUsers()
     {
         $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-        $limit = 20;
+        $limit = isset($_GET['limit']) ? min(50, max(1, intval($_GET['limit']))) : 20;
         $start = ($page - 1) * $limit;
 
-        $users = $this->userModel->UserList($limit, 'level', 'desc', $start);
+        $users = array_map([$this, 'sanitizeUser'], $this->userModel->UserList($limit, 'level', 'desc', $start));
 
         $this->jsonResponse([
             'status' => 'success',
@@ -257,15 +330,17 @@ class custom_headlessController extends Controller
      */
     public function getUser($nick)
     {
-        $user = $this->userModel->UserStats($nick);
-        
-        if (!$user) {
+        $userDetail = $this->userModel->UserDetailWithFields('nick', mb_strtolower(trim((string)$nick)));
+        if (!$userDetail) {
             $this->jsonResponse(['status' => 'error', 'message' => 'User not found'], 404);
         }
+        $stats = $this->userModel->UserStats($userDetail['nick']);
+        $safeUser = $this->sanitizeUser($userDetail);
+        $safeUser['stats'] = $stats;
 
         $this->jsonResponse([
             'status' => 'success',
-            'data' => $user
+            'data' => $safeUser
         ]);
     }
 
@@ -337,7 +412,7 @@ class custom_headlessController extends Controller
      */
     public function getUsersOnline()
     {
-        $users = $this->userModel->UserListOnline();
+        $users = array_map([$this, 'sanitizeUser'], $this->userModel->UserListOnline(0, 50));
         $this->jsonResponse([
             'status' => 'success',
             'data' => $users
@@ -355,12 +430,12 @@ class custom_headlessController extends Controller
         }
 
         $data = $this->getRequestData();
-        $allowedFields = ['name', 'about', 'avatar', 'city'];
+        $allowedFields = ['name', 'status', 'avatar', 'sex'];
         $saveData = [];
         
         foreach ($allowedFields as $field) {
-            if (isset($data[$field])) {
-                $saveData[$field] = $data[$field];
+            if (isset($data[$field]) && is_scalar($data[$field])) {
+                $saveData[$field] = _e((string)$data[$field]);
             }
         }
 
@@ -484,11 +559,11 @@ class custom_headlessController extends Controller
     }
 
     /**
-     * Helper: Kiểm tra quyền Admin
+     * Helper: Kiểm tra quyền Admin (Moderator trở lên: level >= 121)
      */
     private function checkAdmin($user)
     {
-        if (!$user || $user['level'] < 120) {
+        if (!$user || (int)($user['level'] ?? 0) < 121) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden: Admins only'], 403);
         }
     }
@@ -524,11 +599,11 @@ class custom_headlessController extends Controller
         $this->checkAdmin($user);
 
         $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-        $limit = 20;
+        $limit = isset($_GET['limit']) ? min(50, max(1, intval($_GET['limit']))) : 20;
         $start = ($page - 1) * $limit;
         $search = $_GET['search'] ?? '';
 
-        $users = $this->managerModel->GetUsers($start, $limit, $search);
+        $users = array_map([$this, 'sanitizeUser'], $this->managerModel->GetUsers($start, $limit, $search));
 
         $this->jsonResponse([
             'status' => 'success',
@@ -547,7 +622,13 @@ class custom_headlessController extends Controller
         $this->checkAdmin($user);
 
         $id = intval($id);
-        $this->managerModel->ToggleBanUser($id);
+        $ok = $this->managerModel->ToggleBanUser($id, (int)$user['id']);
+        if (!$ok) {
+            $this->jsonResponse([
+                'status' => 'error',
+                'message' => 'Cannot toggle ban for this user (insufficient privilege or self-ban)'
+            ], 403);
+        }
 
         $this->jsonResponse([
             'status' => 'success',
@@ -575,7 +656,9 @@ class custom_headlessController extends Controller
             'page' => $page,
             'limit' => $limit
         ]);
-        /**
+    }
+
+    /**
      * GET /api/v1/media/library
      */
     public function getMediaLibrary()
@@ -684,11 +767,12 @@ class custom_headlessController extends Controller
      */
     public function searchArticles()
     {
-        $query = $_GET['q'] ?? '';
-        if (empty($query)) {
-            $this->jsonResponse(['status' => 'error', 'message' => 'Query is required'], 400);
+        $query = trim((string)($_GET['q'] ?? ''));
+        if (mb_strlen($query, 'UTF-8') < 2 || mb_strlen($query, 'UTF-8') > 100) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Query must be between 2 and 100 characters'], 400);
         }
         $results = $this->articlesModel->ForumSearch($query);
+        $results['result'] = array_slice($results['result'] ?? [], 0, 50);
         $this->jsonResponse(['status' => 'success', 'data' => $results]);
     }
 
@@ -703,19 +787,33 @@ class custom_headlessController extends Controller
         }
 
         $data = $this->getRequestData();
-        $category = $data['category'] ?? 0;
-        $title = $data['title'] ?? '';
-        $slug = $data['slug'] ?? '';
-        $content = $data['content'] ?? '';
-        $meta_data = $data['meta_data'] ?? null;
+        $category = (int)($data['category'] ?? 0);
+        $title = trim((string)($data['title'] ?? ''));
+        $slug = trim((string)($data['slug'] ?? ''));
+        $content = trim((string)($data['content'] ?? ''));
+        $meta_data = isset($data['meta_data']) && is_string($data['meta_data']) ? $data['meta_data'] : null;
 
         if (empty($title) || empty($content)) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Title and content are required'], 400);
         }
 
-        $post_id = $this->articlesModel->PostPublish($category, $title, $slug, $content, $user['nick'], $meta_data);
+        if (!$this->articlesModel->CategoryExist($category)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Category not found'], 404);
+        }
+
+        // BFLA (API5): Chặn thành viên thường đăng bài vào chuyên mục Tin tức (NewsID)
+        if (defined('NewsID') && $category === (int)NewsID && (int)($user['level'] ?? 0) < 120) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden: Only Contributors/Admins can publish in News'], 403);
+        }
+
+        if (empty($slug)) {
+            $articlesLibrary = $this->load->library('articles');
+            $slug = $articlesLibrary->slug($title);
+        }
+
+        $post_id = $this->articlesModel->PostPublish($category, _e($title), $slug, _e($content), $user['nick'], $meta_data);
         if ($post_id) {
-            $this->jsonResponse(['status' => 'success', 'message' => 'Article created', 'post_id' => $post_id]);
+            $this->jsonResponse(['status' => 'success', 'message' => 'Article created', 'post_id' => (int)$post_id]);
         } else {
             $this->jsonResponse(['status' => 'error', 'message' => 'Failed to create article'], 500);
         }
@@ -739,11 +837,24 @@ class custom_headlessController extends Controller
             $this->jsonResponse(['status' => 'error', 'message' => 'Article not found'], 404);
         }
         
-        if ($post['author'] !== $user['nick'] && $user['level'] < 120) {
+        if ($post['author'] !== $user['nick'] && (int)($user['level'] ?? 0) < 120) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden'], 403);
         }
 
-        $this->articlesModel->PostEdit($id, $data);
+        $category = isset($data['category']) ? (int)$data['category'] : (int)$post['category'];
+        if (defined('NewsID') && $category === (int)NewsID && (int)($user['level'] ?? 0) < 120) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden: Cannot move article to News category'], 403);
+        }
+
+        $editData = [
+            'category'  => $category,
+            'title'     => isset($data['title']) ? _e(trim((string)$data['title'])) : $post['title'],
+            'slug'      => isset($data['slug']) ? trim((string)$data['slug']) : $post['slug'],
+            'content'   => isset($data['content']) ? _e(trim((string)$data['content'])) : $post['content'],
+            'meta_data' => isset($data['meta_data']) && is_string($data['meta_data']) ? $data['meta_data'] : ($post['meta_data'] ?? null)
+        ];
+
+        $this->articlesModel->PostEdit($id, $editData);
         $this->jsonResponse(['status' => 'success', 'message' => 'Article updated']);
     }
 
@@ -763,7 +874,7 @@ class custom_headlessController extends Controller
             $this->jsonResponse(['status' => 'error', 'message' => 'Article not found'], 404);
         }
         
-        if ($post['author'] !== $user['nick'] && $user['level'] < 120) {
+        if ($post['author'] !== $user['nick'] && (int)($user['level'] ?? 0) < 120) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden'], 403);
         }
 
@@ -782,19 +893,33 @@ class custom_headlessController extends Controller
         }
 
         $id = intval($id);
+        // BOLA / IDOR (API1): Kiểm tra bài viết tồn tại và quyền sở hữu trước khi thêm chương
+        $post = $this->articlesModel->PostDetail($id);
+        if (!$post) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Article not found'], 404);
+        }
+        if ($post['author'] !== $user['nick'] && (int)($user['level'] ?? 0) < 120) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden: You do not own this article'], 403);
+        }
+
         $data = $this->getRequestData();
-        $title = $data['title'] ?? '';
-        $slug = $data['slug'] ?? '';
-        $content = $data['content'] ?? '';
-        $meta_data = $data['meta_data'] ?? null;
+        $title = trim((string)($data['title'] ?? ''));
+        $slug = trim((string)($data['slug'] ?? ''));
+        $content = trim((string)($data['content'] ?? ''));
+        $meta_data = isset($data['meta_data']) && is_string($data['meta_data']) ? $data['meta_data'] : null;
 
         if (empty($title) || empty($content)) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Title and content are required'], 400);
         }
 
+        if (empty($slug)) {
+            $articlesLibrary = $this->load->library('articles');
+            $slug = $articlesLibrary->slug($title);
+        }
+
         $chapter_id = $this->articlesModel->ChapterPublish($id, $title, $slug, $content, $user['nick'], $meta_data);
         if ($chapter_id) {
-            $this->jsonResponse(['status' => 'success', 'message' => 'Chapter created', 'chapter_id' => $chapter_id]);
+            $this->jsonResponse(['status' => 'success', 'message' => 'Chapter created', 'chapter_id' => (int)$chapter_id]);
         } else {
             $this->jsonResponse(['status' => 'error', 'message' => 'Failed to create chapter'], 500);
         }
@@ -806,7 +931,7 @@ class custom_headlessController extends Controller
     public function getChapter($id)
     {
         $id = intval($id);
-        $chapter = $this->articlesModel->ForumDetailWithFields('articles_chapter', 'id', $id);
+        $chapter = $this->articlesModel->ForumDetailWithFields('articles_chap', 'id', $id);
         if (!$chapter) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Chapter not found'], 404);
         }
@@ -845,26 +970,56 @@ class custom_headlessController extends Controller
      */
     public function forgotPassword()
     {
-        $data = $this->getRequestData();
-        $email = $data['email'] ?? '';
+        if (!checkRateLimit('api_forgot_password', 15)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Too many requests. Please wait before trying again.'], 429);
+        }
 
-        if (empty($email)) {
-            $this->jsonResponse(['status' => 'error', 'message' => 'Email is required'], 400);
+        $data = $this->getRequestData();
+        $email = mb_strtolower(trim((string)($data['email'] ?? '')));
+
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Valid email is required'], 400);
         }
 
         $user = $this->userModel->UserDetailWithFields('email', $email);
-        if (!$user) {
-            $this->jsonResponse(['status' => 'error', 'message' => 'User not found'], 404);
+        if ($user) {
+            $token = bin2hex(random_bytes(32));
+            $expires = time() + 3600; // 1 hour
+            $this->userModel->SetResetToken($email, $token, $expires);
+
+            // Gửi email nếu đã cấu hình SMTP (không bao giờ trả raw token về JSON response - chống API6 Account Takeover)
+            $smtpConfig = config('system.smtp');
+            if (!empty($smtpConfig['host'])) {
+                try {
+                    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                    $mail->isSMTP();
+                    $mail->Host       = $smtpConfig['host'];
+                    $mail->SMTPAuth   = true;
+                    $mail->Username   = $smtpConfig['user'];
+                    $mail->Password   = $smtpConfig['pass'];
+                    if ($smtpConfig['encrypt'] === 'tls') {
+                        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                    } elseif ($smtpConfig['encrypt'] === 'ssl') {
+                        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+                    }
+                    $mail->Port       = $smtpConfig['port'];
+                    $mail->setFrom($smtpConfig['from_email'], $smtpConfig['from_name']);
+                    $mail->addAddress($email);
+                    $mail->isHTML(true);
+                    $mail->Subject = 'Yeu cau dat lai mat khau';
+                    $resetLink = url('/login/password/reset?token=' . $token);
+                    $mail->Body    = "Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng click vào link sau để đổi mật khẩu: <br><a href='{$resetLink}'>{$resetLink}</a><br>Link có hiệu lực trong 1 giờ.";
+                    $mail->send();
+                } catch (\Throwable $e) {
+                    // Không tiết lộ lỗi SMTP chi tiết ra ngoài
+                }
+            }
         }
 
-        $token = bin2hex(random_bytes(32));
-        $expires = time() + 3600; // 1 hour
-        $this->userModel->SetResetToken($email, $token, $expires);
-
+        // Phản hồi đồng nhất tránh dò tìm email (User Enumeration) và không trả về token
         $this->jsonResponse([
-            'status' => 'success', 
-            'message' => 'Reset token generated (simulation).',
-            'token' => $token
+            'status' => 'success',
+            'message' => 'If the email exists in our system, password reset instructions have been sent.'
         ]);
     }
 
@@ -874,11 +1029,15 @@ class custom_headlessController extends Controller
     public function resetPassword()
     {
         $data = $this->getRequestData();
-        $token = $data['token'] ?? '';
-        $new_password = $data['password'] ?? '';
+        $token = trim((string)($data['token'] ?? ''));
+        $new_password = (string)($data['password'] ?? '');
 
         if (empty($token) || empty($new_password)) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Token and password are required'], 400);
+        }
+
+        if (strlen($new_password) < 6 || strlen($new_password) > 32) {
+            $this->jsonResponse(['status' => 'error', 'message' => 'Password must be between 6 and 32 characters'], 400);
         }
 
         $tokenData = $this->userModel->CheckResetToken($token);
@@ -886,7 +1045,8 @@ class custom_headlessController extends Controller
             $this->jsonResponse(['status' => 'error', 'message' => 'Invalid or expired token'], 400);
         }
 
-        $this->userModel->ResetPasswordByToken($token, $new_password);
+        $hashedPassword = hash_password_secure($new_password);
+        $this->userModel->ResetPasswordByToken($token, $hashedPassword);
         $this->jsonResponse(['status' => 'success', 'message' => 'Password reset successfully']);
     }
 }

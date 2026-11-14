@@ -15,6 +15,13 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Diễn đàn', 
     <?php setcookie('manager_articles_success', '', time() - 3600, '/'); ?>
 <?php endif; ?>
 
+<?php if (isset($_COOKIE['manager_articles_error'])): ?>
+    <div class="alert alert-danger">
+        <i class="fa fa-exclamation-triangle"></i> <?= $_COOKIE['manager_articles_error'] ?>
+    </div>
+    <?php setcookie('manager_articles_error', '', time() - 3600, '/'); ?>
+<?php endif; ?>
+
 <ul class="nav nav-tabs mb-4 border-0" style="border-bottom: 2px solid var(--border) !important;">
     <li class="nav-item">
         <a class="nav-link <?= ($tab === 'categories') ? 'active' : '' ?>" href="<?= url('/manager/articles?tab=categories') ?>" style="<?= ($tab === 'categories') ? 'font-weight:bold; border:none; border-bottom: 3px solid var(--primary); background: transparent; color: var(--primary);' : 'border:none; color: var(--fg-muted);' ?>">Chuyên mục</a>
@@ -382,7 +389,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Diễn đàn', 
                                 <td class="align-middle border-top-0">
                                     <div class="font-weight-bold" style="color:var(--heading); font-size:15px;"><a href="<?= url('/view-chap/' . $c['id'] . '-' . $c['slug'] . '.html') ?>" target="_blank" style="color:var(--heading);"><?= $c['title'] ?></a></div>
                                 </td>
-                                <td class="align-middle border-top-0"><span style="color:var(--primary); font-weight:500;"><a href="<?= url('/articles/post-' . $c['box'] . '.html') ?>" target="_blank"><?= $c['post_title'] ?? 'Bài viết không tồn tại' ?></a></span></td>
+                                <td class="align-middle border-top-0"><span style="color:var(--primary); font-weight:500;"><a href="<?= url('/articles/' . $c['box'] . '-' . ($c['post_slug'] ?? 'post') . '.html') ?>" target="_blank"><?= $c['post_title'] ?? 'Bài viết không tồn tại' ?></a></span></td>
                                 <td class="align-middle border-top-0 font-weight-bold" style="color:var(--accent);"><?= $c['author'] ?></td>
                                 <td class="align-middle text-right border-top-0 text-muted" style="font-size:0.9rem;"><?= date('d/m/Y', $c['time']) ?></td>
                                 <td class="text-right align-middle border-top-0">

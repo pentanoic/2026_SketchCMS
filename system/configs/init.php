@@ -47,8 +47,11 @@ error_reporting(-1);
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Lax');
 
-if (extension_loaded('zlib')) {
-    ini_set('zlib.output_compression', 'On');
+if (extension_loaded('zlib') && !in_array('ob_gzhandler', ob_list_handlers(), true)) {
+    $zlibCurrent = strtolower((string) ini_get('zlib.output_compression'));
+    if ($zlibCurrent !== '1' && $zlibCurrent !== 'on') {
+        ini_set('zlib.output_compression', 'On');
+    }
     ini_set('zlib.output_compression_level', 3);
 }
 

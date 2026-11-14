@@ -15,7 +15,7 @@
 <div class="dw-card mt-3">
     <div class="dw-card-header">
         <h3 class="dw-card-title">
-            <i class="fa fa-tags"></i> Bài viết gắn thẻ: <?= $TagDetail['name'] ?>
+            <i class="fa fa-tags"></i> <?= $TagDetail['name'] ?>
         </h3>
     </div>
 
@@ -30,7 +30,7 @@
                 ?>
                 <div class="dw-post-row <?= ($isNew || $isHot) ? 'dw-post-row-new' : '' ?>">
                     <div class="dw-post-icon">
-                        <img src="<?= getAvtUser($PostItem['UserDetail'] ?? []) ?>" class="lozad" width="38" height="38" style="object-fit: cover; border-radius: 50%; border: 1px solid var(--border);" alt="Avatar">
+                        <img src="<?= getAvtUser($PostItem['UserDetail']) ?>" class="lozad" width="38" height="38" style="object-fit: cover; border-radius: 50%; border: 1px solid var(--border);" alt="Avatar">
                         <div style="min-width:0;">
                             <div class="dw-post-title">
                                 <?php if ($isHot): ?><span class="badge badge-warning text-white mr-1">Hot</span><?php endif ?>
@@ -42,13 +42,14 @@
                                 </a>
                             </div>
                             <div class="dw-post-meta">
+                                <span class="mr-2"><i class="fa fa-cube"></i> <?= $PostItem['category_name'] ?></span>
                                 <span class="mr-2"><i class="fa fa-clock-o"></i> <?= ago($PostItem['time']) ?></span>
-                                <span><i class="fa fa-user"></i> <?= RoleColor($PostItem['UserDetail'] ?? ['nick' => $PostItem['author'], 'level' => 0]) ?></span>
+                                <span><i class="fa fa-user"></i> <?= RoleColor($PostItem['UserDetail']) ?></span>
                             </div>
                         </div>
                     </div>
                     <div class="dw-post-stat">
-                        <span class="dw-post-count"><?= $PostItem['CommentCount'] ?? 0 ?></span>
+                        <span class="dw-post-count"><?= $PostItem['comment'] ?></span>
                         <span>Trả lời</span>
                     </div>
                     <div class="dw-post-stat d-none d-sm-block">

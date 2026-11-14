@@ -2,9 +2,9 @@
 return array (
   'app' => 
   array (
-    'name' => 'SketchCMS',
-    'description' => 'SketchCMS - Mã nguồn quản trị nội dung, mã nguồn mở miễn phí dựa trên mô hình HMVC',
-    'keyword' => 'open source code, cms, content, php, mysql, sketchcms',
+    'name' => 'LAB302',
+    'description' => 'từng bước vững vàng, mở lối tương lai',
+    'keyword' => 'lab302, huce, nuce, sketchcms',
     'site' => 
     array (
       'scheme' => 'http://',

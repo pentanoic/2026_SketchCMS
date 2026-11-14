@@ -52,7 +52,7 @@
     </style>
     <!-- Structured data -->
     <?php if (strpos($_SERVER['REQUEST_URI'], '/404') === false): ?>
-        <script type="application/ld+json">
+        <script type="application/ld+json" nonce="<?= _e(csp_nonce()) ?>">
             {
                 "@context": "https://schema.org",
                 "@type": "WebSite",
@@ -345,7 +345,7 @@
     $telegramUploadUrl = ($telegramUploadMode === 'direct') ? url('/media/upload') : $cloudflareWorkerUrl . '/upload';
     $telegramDownloadBaseUrl = ($telegramUploadMode === 'direct') ? url('/media/telegram_download') : $cloudflareWorkerUrl . '/download';
     ?>
-    <script>
+    <script nonce="<?= _e(csp_nonce()) ?>">
         var TelegramUploadMode = '<?= $telegramUploadMode ?>';
         var TelegramUploadUrl = '<?= $telegramUploadUrl ?>';
         var TelegramDownloadBaseUrl = '<?= $telegramDownloadBaseUrl ?>';
@@ -358,7 +358,7 @@
         <div id="rate-limit-toast" style="position: fixed; top: -100px; left: 0; width: 100%; background: rgba(255, 255, 255, 0.95); color: #ff3333; padding: 15px 24px; z-index: 999999; font-weight: bold; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: top 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); backdrop-filter: blur(5px);">
             <?= $_SESSION['global_toast_error'] ?>
         </div>
-        <script>
+        <script nonce="<?= _e(csp_nonce()) ?>">
             document.addEventListener('DOMContentLoaded', function() {
                 const toast = document.getElementById('rate-limit-toast');
                 if (toast) {
@@ -374,7 +374,7 @@
         </script>
         <?php unset($_SESSION['global_toast_error']); ?>
     <?php endif; ?>
-    <script>
+    <script nonce="<?= _e(csp_nonce()) ?>">
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.dw-copy-btn').forEach(function(btn) {
                 btn.addEventListener('click', function() {
@@ -397,7 +397,7 @@
 
     <!-- Fancybox JS -->
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
-    <script>
+    <script nonce="<?= _e(csp_nonce()) ?>">
         document.addEventListener('DOMContentLoaded', function() {
             // 1. Quét tìm toàn bộ hình ảnh trong khu vực bài viết
             const images = document.querySelectorAll('#content img');

@@ -105,13 +105,26 @@ class managerModel extends Model
         return $this->GetTotalUsers();
     }
     
-    public function ToggleBanUser($id)
+    public function ToggleBanUser($id, $admin_id = 0)
     {
         $id = (int)$id;
+        $admin_id = (int)$admin_id;
+        if ($admin_id > 0 && $id === $admin_id) {
+            return false;
+        }
+
         $stmt = $this->db->prepare("SELECT id, level FROM users WHERE id = ?");
         $stmt->execute([$id]);
         $user = $stmt->fetch();
         if ($user) {
+            if ($admin_id > 0) {
+                $stmt_admin = $this->db->prepare("SELECT level FROM users WHERE id = ?");
+                $stmt_admin->execute([$admin_id]);
+                $admin = $stmt_admin->fetch();
+                if (!$admin || $user['level'] >= $admin['level']) {
+                    return false;
+                }
+            }
             $new_level = ($user['level'] >= 0) ? -1 : 0;
             
             $stmt = $this->db->prepare("UPDATE users SET level = :level WHERE id = :id");
@@ -130,10 +143,10 @@ class managerModel extends Model
         $admin_id = (int)$admin_id;
         
         // Kiểm tra admin
-        $stmt = $this->db->prepare("SELECT id, password, level FROM users WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT id, pass, level FROM users WHERE id = ?");
         $stmt->execute([$admin_id]);
         $admin = $stmt->fetch();
-        if (!$admin || !password_verify($admin_pass_input, $admin['password'])) {
+        if (!$admin || !verify_password_seamless($admin_pass_input, $admin['pass'], $admin['id'], $this->db)) {
             return ['status' => false, 'message' => 'Mật khẩu xác nhận không chính xác.'];
         }
 
@@ -152,11 +165,11 @@ class managerModel extends Model
 
         // Mật khẩu mới: nick + 123000
         $new_pass_plain = strtolower($target['nick']) . '123000';
-        $new_pass_hash = password_hash($new_pass_plain, PASSWORD_DEFAULT);
+        $new_pass_hash = hash_password_secure($new_pass_plain);
 
-        $stmt = $this->db->prepare("UPDATE users SET password = :password WHERE id = :id");
+        $stmt = $this->db->prepare("UPDATE users SET pass = :pass, failed_logins = 0, lock_time = 0 WHERE id = :id");
         $stmt->execute([
-            ':password' => $new_pass_hash,
+            ':pass' => $new_pass_hash,
             ':id' => $target_id
         ]);
 
@@ -322,6 +335,11 @@ class managerModel extends Model
         $stmt3->execute([$id]);
         $stmt4 = $this->db->prepare("DELETE FROM articles_file WHERE blogid = ?");
         $stmt4->execute([$id]);
+
+        require_once __DIR__ . '/../articles/articlesModel.php';
+        $articlesModel = new \articlesModel();
+        $articlesModel->TagsDeleteByPost($id);
+
         return true;
     }
 
@@ -330,7 +348,7 @@ class managerModel extends Model
         $start = (int)$start;
         $limit = (int)$limit;
         
-        $sql = "SELECT c.id, c.title, c.slug, c.author, c.time, c.box, p.title as post_title 
+        $sql = "SELECT c.id, c.title, c.slug, c.author, c.time, c.box, p.title as post_title, p.slug as post_slug 
                 FROM articles_chap c 
                 LEFT JOIN articles_post p ON c.box = p.id";
         
@@ -371,9 +389,6 @@ class managerModel extends Model
         $id = (int)$id;
         $stmt1 = $this->db->prepare("DELETE FROM articles_chap WHERE id = ?");
         $stmt1->execute([$id]);
-        
-        $stmt2 = $this->db->prepare("DELETE FROM articles_cmt WHERE chap = ?");
-        $stmt2->execute([$id]);
         return true;
     }
 }

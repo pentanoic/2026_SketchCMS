@@ -56,7 +56,7 @@
 
     <!-- Structured data -->
     <?php if (strpos($_SERVER['REQUEST_URI'], '/404') === false): ?>
-        <script type="application/ld+json">
+        <script type="application/ld+json" nonce="<?= _e(csp_nonce()) ?>">
             {
                 "@context": "https://schema.org",
                 "@type": "WebSite",
@@ -356,7 +356,7 @@
     $telegramUploadUrl = ($telegramUploadMode === 'direct') ? url('/media/upload') : $cloudflareWorkerUrl . '/upload';
     $telegramDownloadBaseUrl = ($telegramUploadMode === 'direct') ? url('/media/telegram_download') : $cloudflareWorkerUrl . '/download';
     ?>
-    <script>
+    <script nonce="<?= _e(csp_nonce()) ?>">
         var TelegramUploadMode = '<?= $telegramUploadMode ?>';
         var TelegramUploadUrl = '<?= $telegramUploadUrl ?>';
         var TelegramDownloadBaseUrl = '<?= $telegramDownloadBaseUrl ?>';

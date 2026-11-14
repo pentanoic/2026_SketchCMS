@@ -58,26 +58,56 @@ class userModel extends Model
     public function logout()
     {
         if (isset($_SESSION['uid'])) {
-            $this->db->exec("UPDATE users SET remember_token = NULL WHERE id = " . intval($_SESSION['uid']));
+            $stmt = $this->db->prepare("UPDATE users SET remember_token = NULL WHERE id = ?");
+            $stmt->execute([intval($_SESSION['uid'])]);
         }
-        setcookie('cuid', '', TIME - 60, COOKIE_PATH);
-        setcookie('cups', '', TIME - 60, COOKIE_PATH);
+        $cookieOpts = [
+            'expires'  => TIME - 60,
+            'path'     => COOKIE_PATH ?: '/',
+            'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ];
+        setcookie('cuid', '', $cookieOpts);
+        setcookie('cups', '', $cookieOpts);
         unset($_SESSION['uid']);
     }
 
     // check if user exits for login
     public function getForLogin($type, $email)
     {
-        $stmt = $this->db->prepare('SELECT `id`, `pass` FROM `users` WHERE `' . $type . '` = ? LIMIT 1');
+        if (!in_array($type, ['id', 'nick', 'email'], true)) {
+            $type = 'nick';
+        }
+        $stmt = $this->db->prepare('SELECT `id`, `nick`, `email`, `pass`, `level`, `failed_logins`, `lock_time` FROM `users` WHERE `' . $type . '` = ? LIMIT 1');
         $stmt->execute([$email]);
         return $stmt->fetch();
+    }
+
+    public function recordLoginFailure(array $user): int
+    {
+        $failed = ((int)($user['failed_logins'] ?? 0)) + 1;
+        $lock = ($failed >= 5) ? (time() + 15 * 60) : 0;
+        $stmt = $this->db->prepare('UPDATE `users` SET `failed_logins` = :failed, `lock_time` = :lock WHERE `id` = :id');
+        $stmt->execute([
+            ':failed' => $failed,
+            ':lock'   => $lock,
+            ':id'     => (int)$user['id']
+        ]);
+        return $lock;
+    }
+
+    public function resetLoginFailures(int $userId): void
+    {
+        $stmt = $this->db->prepare('UPDATE `users` SET `failed_logins` = 0, `lock_time` = 0 WHERE `id` = :id');
+        $stmt->execute([':id' => $userId]);
     }
 
     // check if account or email is exists for register
     public function checkUsedInfo($account, $email)
     {
         $stmt = $this->db->prepare('SELECT `nick`, `email` FROM `users` WHERE nick = :account OR `email` = :email LIMIT 1');
-        $stmt->execute(['nick' => $account, 'email' => $email]);
+        $stmt->execute(['account' => $account, 'email' => $email]);
         $data = $stmt->fetch();
 
         return $data;
@@ -96,7 +126,7 @@ class userModel extends Model
         $stmt->execute([
             'nick' => $user['nick'],
             'name' => $user['nick'],
-            'pass' => e_pass($user['pass']),
+            'pass' => hash_password_secure($user['pass']),
             'sex' => $user['sex'],
             'reg' => TIME
         ]);
@@ -204,12 +234,21 @@ class userModel extends Model
 
     public function UserDetailEdit($MyDetail, $SaveData, $table = 'users')
     {
-        $sql = "UPDATE $table SET ";
+        if (!in_array($table, ['users', 'users_waifu'], true)) {
+            $table = 'users';
+        }
+        $sql = "UPDATE `$table` SET ";
         $setParts = [];
         $bindValues = [];
         foreach ($SaveData as $key => $value) {
+            if (!preg_match('/^[a-zA-Z0-9_]+$/', (string)$key)) {
+                continue;
+            }
             $setParts[] = "`$key` = :$key";
             $bindValues[":$key"] = $value;
+        }
+        if (empty($setParts)) {
+            return 0;
         }
         $sql .= implode(', ', $setParts);
         $sql .= ' WHERE id = :id';
@@ -246,9 +285,10 @@ class userModel extends Model
 
     public function SetResetToken($email, $token, $expires)
     {
+        $hashedToken = hash_identifier((string)$token);
         $stmt = $this->db->prepare('UPDATE users SET reset_token = :token, reset_expires = :expires WHERE email = :email');
         $stmt->execute([
-            'token' => $token,
+            'token' => $hashedToken,
             'expires' => $expires,
             'email' => $email
         ]);
@@ -257,9 +297,10 @@ class userModel extends Model
 
     public function CheckResetToken($token)
     {
+        $hashedToken = hash_identifier((string)$token);
         $stmt = $this->db->prepare('SELECT * FROM users WHERE reset_token = :token AND reset_expires > :time LIMIT 1');
         $stmt->execute([
-            'token' => $token,
+            'token' => $hashedToken,
             'time' => time()
         ]);
         return $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -267,10 +308,11 @@ class userModel extends Model
 
     public function ResetPasswordByToken($token, $new_password)
     {
-        $stmt = $this->db->prepare('UPDATE users SET pass = :pass, reset_token = NULL, reset_expires = NULL WHERE reset_token = :token');
+        $hashedToken = hash_identifier((string)$token);
+        $stmt = $this->db->prepare('UPDATE users SET pass = :pass, reset_token = NULL, reset_expires = NULL, failed_logins = 0, lock_time = 0 WHERE reset_token = :token');
         $stmt->execute([
             'pass' => $new_password,
-            'token' => $token
+            'token' => $hashedToken
         ]);
         return $stmt->rowCount() > 0;
     }

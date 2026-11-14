@@ -61,8 +61,18 @@ class Auth
         if (isset($_SESSION['uid'])) {
             $session_id = intval(trim($_SESSION['uid']));
         } elseif (isset($_COOKIE['cuid']) && isset($_COOKIE['cups'])) {
-            $cookie_id = intval(base64_decode(trim($_COOKIE['cuid'])));
-            $cookie_token = trim($_COOKIE['cups']);
+            $rawCuid = trim((string)$_COOKIE['cuid']);
+            if (strpos($rawCuid, '.') !== false) {
+                [$b64Id, $sig] = explode('.', $rawCuid, 2);
+                $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
+                        . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+                if (hash_equals(hash_hmac('sha256', $b64Id, $secret), $sig)) {
+                    $cookie_id = intval(base64_decode($b64Id, true));
+                }
+            } else {
+                $cookie_id = intval(base64_decode($rawCuid, true));
+            }
+            $cookie_token = trim((string)$_COOKIE['cups']);
         }
 
         $id = $session_id ?: $cookie_id;
@@ -135,8 +145,15 @@ class Auth
     private function unset()
     {
         unset($_SESSION['uid']);
-        setcookie('cuid', '', TIME - 60, COOKIE_PATH);
-        setcookie('cups', '', TIME - 60, COOKIE_PATH);
+        $cookieOpts = [
+            'expires'  => TIME - 60,
+            'path'     => COOKIE_PATH ?: '/',
+            'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ];
+        setcookie('cuid', '', $cookieOpts);
+        setcookie('cups', '', $cookieOpts);
     }
 
     public function NewMailCount($MyDetail)

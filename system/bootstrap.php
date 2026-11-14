@@ -19,13 +19,15 @@ define('SYSTEM', ROOT . 'system' . DS);
 define('TEMPLATES', ROOT . 'templates' . DS);
 define('TIME', time());
 
-// Security Headers
+// Security Headers & CSP with Cryptographic Nonce
+if (!defined('CSP_NONCE')) {
+    define('CSP_NONCE', base64_encode(random_bytes(16)));
+}
 header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('X-XSS-Protection: 1; mode=block');
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-// Basic CSP for CMS
-header("Content-Security-Policy: default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:;");
+header("Content-Security-Policy: default-src 'self' data: https:; script-src 'self' 'nonce-" . CSP_NONCE . "' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: http:; font-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self'; base-uri 'self'; object-src 'none';");
 
 if (version_compare(PHP_VERSION, '8.0', '<')) {
     // If the version below 8.0, we stops the script and displays an error
@@ -44,6 +46,11 @@ require(APP . 'vendor' . DS . 'autoload.php');
 
 // global function
 require(SYSTEM . 'functions.php');
+
+// Register Centralized Security & Exception Handler
+if (class_exists('Error')) {
+    Error::register();
+}
 
 // Register Services
 $config = Container::get(Config::class);

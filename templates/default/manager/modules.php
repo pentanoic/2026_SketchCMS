@@ -57,9 +57,6 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                                     <a href="<?= url('/manager/modules/template?name=' . $m['name']) ?>" class="btn btn-warning btn-sm">
                                         <i class="fa fa-pencil"></i> Sửa Code
                                     </a>
-                                    <button type="button" class="btn btn-info btn-sm" onclick="openEditInfoModal('<?= $m['name'] ?>', '<?= _e($descJson) ?>')">
-                                        <i class="fa fa-info-circle"></i> Thông tin
-                                    </button>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -202,6 +199,9 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                                                         <i class="fa fa-download"></i> Cài đặt
                                                     </button>
                                                     <?php endif; ?>
+                                                    <button type="button" class="btn btn-info btn-sm" onclick="openEditInfoModal('<?= $m['name'] ?>', '<?= _e($descJson) ?>')">
+                                                        <i class="fa fa-info-circle"></i> Thông tin
+                                                    </button>
                                                     <button type="button" class="btn btn-danger btn-sm" onclick="confirmModuleAction('delete', '<?= $m['name'] ?>')">
                                                         <i class="fa fa-trash"></i> Xóa
                                                     </button>
@@ -229,6 +229,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
 <div class="modal fade" id="addModuleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <form action="<?= url('/manager/modules/add') ?>" method="POST" class="modal-content">
+            <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div class="modal-header">
                 <h5 class="modal-title">Tạo Module mới</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -263,6 +264,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
 <div class="modal fade" id="uploadModuleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <form action="<?= url('/manager/modules/upload') ?>" method="POST" enctype="multipart/form-data" class="modal-content">
+            <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div class="modal-header">
                 <h5 class="modal-title">Tải lên Module (.zip)</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -327,6 +329,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
 <div class="modal fade" id="packageModuleModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <form action="<?= url('/manager/modules/download') ?>" method="POST" class="modal-content">
+            <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div class="modal-header">
                 <h5 class="modal-title">Đóng gói Module</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -376,6 +379,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
 <div class="modal fade" id="editModuleInfoModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <form action="<?= url('/manager/modules/edit_info') ?>" method="POST" class="modal-content">
+            <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div class="modal-header">
                 <h5 class="modal-title">Sửa thông tin Module</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
@@ -408,6 +412,10 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                 </div>
                 
                 <hr>
+                <div class="mb-3">
+                    <label class="form-label text-danger">Tên phân hệ xác nhận</label>
+                    <input type="text" name="module_name" class="form-control" placeholder="modules" required />
+                </div>
                 <div class="mb-3">
                     <label class="form-label text-danger">Mật khẩu Admin</label>
                     <input type="password" name="admin_pass" class="form-control" required />
