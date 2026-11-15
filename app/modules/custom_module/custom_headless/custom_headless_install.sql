@@ -1,0 +1,1 @@
+-- Không có bảng CSDL nào cần tạo cho module headless

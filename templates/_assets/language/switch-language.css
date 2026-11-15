@@ -1,0 +1,54 @@
+body {
+    top: 0px !important;
+}
+
+/*
+.skiptranslate iframe {
+    display: none;
+}
+
+.skiptranslate *,
+.skiptranslate {
+    font-size: 1px !important;
+    color: #fff !important;
+}
+
+.skiptranslate select,
+.skiptranslate option {
+    font-size: 14px !important;
+    color: #000 !important;
+}
+
+.skiptranslate img {
+    display: none;
+}
+
+select.goog-te-combo {
+    padding: 9px 0;
+    width: 100%;
+    border: 1px solid #bcbcbc;
+    border-bottom: 1px solid #ccc;
+}
+*/
+
+.skiptranslate,
+#goog-gt-tt,
+#goog-gt-vt,
+#goog-gt-votingHiddenPane,
+#goog-gt-votingForm,
+#goog-gt-tt *,
+#google_translate_element2 {
+    display: none
+}
+
+.flag-icon {
+    width: 24px;
+    height: 16px;
+    margin-right: 5px;
+}
+
+.lang-item.selected {
+    background-color: red !important;
+    color: white !important;
+    font-weight: bold;
+}

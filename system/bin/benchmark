@@ -1,0 +1,64 @@
+#!/usr/bin/env php
+<?php
+/**
+ * SketchCMS CLI Benchmark Tool
+ * Usage: php system/bin/benchmark [--iterations=10]
+ */
+
+if (PHP_SAPI !== 'cli') {
+    exit("This script must be run from the command line.\n");
+}
+
+$iterations = 10;
+foreach ($argv as $arg) {
+    if (strpos($arg, '--iterations=') === 0) {
+        $iterations = max(1, (int) substr($arg, 13));
+    }
+}
+
+$root = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
+
+$tStart = microtime(true);
+require $root . 'system' . DIRECTORY_SEPARATOR . 'bootstrap.php';
+$tBootstrap = microtime(true);
+
+echo "=== SketchCMS Performance Benchmark ===\n";
+echo "PHP Version : " . PHP_VERSION . "\n";
+echo "Iterations  : {$iterations}\n";
+echo "OPcache CLI : " . (ini_get('opcache.enable_cli') ? 'Enabled' : 'Disabled') . "\n\n";
+
+echo sprintf("[1] Bootstrap (incl. Env & Autoload) : %8.3f ms\n", ($tBootstrap - $tStart) * 1000);
+
+$tDb0 = microtime(true);
+$db = Container::get(DB::class);
+$tDb1 = microtime(true);
+echo sprintf("[2] DB Connect (PDO)                 : %8.3f ms\n", ($tDb1 - $tDb0) * 1000);
+
+// Benchmark DB Query
+$tQueryTotal = 0.0;
+for ($i = 0; $i < $iterations; $i++) {
+    $q0 = microtime(true);
+    $stmt = $db->query('SELECT 1');
+    $stmt->fetchColumn();
+    $tQueryTotal += (microtime(true) - $q0);
+}
+echo sprintf("[3] DB Query 'SELECT 1' (avg x%d)    : %8.3f ms\n", $iterations, ($tQueryTotal / $iterations) * 1000);
+
+// Benchmark Config::get
+$tCfg0 = microtime(true);
+for ($i = 0; $i < $iterations * 100; $i++) {
+    config('system.app.name');
+    config('DB_HOST', '127.0.0.1', true);
+}
+$tCfg1 = microtime(true);
+echo sprintf("[4] Config + Env lookup (%d calls)  : %8.3f ms\n", $iterations * 200, ($tCfg1 - $tCfg0) * 1000);
+
+// Benchmark Kernel instantiation
+$tK0 = microtime(true);
+$kernel = Container::get(Kernel::class);
+$tK1 = microtime(true);
+echo sprintf("[5] Kernel Init                      : %8.3f ms\n", ($tK1 - $tK0) * 1000);
+
+$peakMem = memory_get_peak_usage(true) / 1024 / 1024;
+echo sprintf("\nPeak Memory Usage : %.2f MB\n", $peakMem);
+echo sprintf("Total Script Time : %.3f ms\n", (microtime(true) - $tStart) * 1000);

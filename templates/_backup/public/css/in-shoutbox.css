@@ -1,0 +1,180 @@
+/* ============================================================
+   DOREW — SHOUTBOX / CHAT PANEL
+   Aerospace & Mechanical Engineering Theme
+   ============================================================ */
+
+@media (max-width: 599px) {
+    .overflow-chatbox {
+        overflow-y: scroll;
+        max-height: 700px;
+    }
+}
+
+/* ── Post Item — chat message row ─────────────────────── */
+
+.postItem {
+    background: linear-gradient(180deg, #1a2230 0%, #161d26 100%);
+    padding: 6px 6px 10px 6px;
+    border: 1px solid #2e4a66;
+    border-bottom: 0;
+    position: relative;
+    transition: background 0.15s;
+}
+
+.postItem:hover {
+    background: linear-gradient(180deg, #1f2a3a 0%, #1a2230 100%);
+}
+
+/* Separator between posts */
+.postItem + .postItem {
+    border-top: 1px solid #1f3048;
+    /* dashed feel via repeating gradient */
+    border-image: repeating-linear-gradient(
+        90deg,
+        #2e4a66 0px, #2e4a66 6px,
+        transparent 6px, transparent 12px
+    ) 1;
+}
+
+.postItem:first-child {
+    border-top: 1px solid #3a506b;
+}
+
+.postItem:hover::before {
+    opacity: 1;
+}
+
+/* Table layout reset */
+.postItem table {
+    padding: 0;
+    margin: 0;
+    margin-left: 10px;
+}
+
+/* ── Avatar ──────────────────────────────────────────── */
+
+.postItem .avt {
+    background: #0d1117;
+    margin: 0 8px 0 0;
+    padding: 2px;
+    border: 1px solid #3a506b;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    box-shadow: 0 0 6px rgba(0, 212, 255, 0.2);
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* ── Member info bar ─────────────────────────────────── */
+
+.postItem .memInfo {
+    background: linear-gradient(90deg, #192436 0%, #111e2e 100%);
+    border-bottom: 1px solid #243447;
+    margin: -6px -6px 6px -6px;
+    padding: 4px 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: #8fa3ba;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.postItem .memInfo::before {
+    content: '▶';
+    color: #f0a500;
+    font-size: 8px;
+    opacity: 0.7;
+}
+
+/* ── Chat bubble ─────────────────────────────────────── */
+
+.postItem .chatbox {
+    background: #1c2733;
+    border: 1px solid #253347;
+    border-left: 2px solid #2e4a66;
+    border-radius: 0 !important;
+    color: #e8edf5;
+    font-family: 'Exo 2', sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    margin: 6px 4px 4px 4px;
+    padding: 10px 12px;
+    position: relative;
+    text-align: left;
+    word-wrap: break-word;
+    transition: border-left-color 0.2s;
+}
+
+.postItem:hover .chatbox {
+    border-left-color: #00d4ff;
+}
+
+.postItem .chatbox center a {
+    display: inline-block;
+    margin: 4px;
+    vertical-align: top;
+}
+
+.postItem .chatbox center img {
+    display: block !important;
+
+    max-width: 220px !important;
+    max-height: 320px !important;
+
+    width: auto !important;
+    height: auto !important;
+
+    border-radius: 6px;
+}
+
+/* Speech arrow */
+.postItem .chatbox .textchat {
+    position: absolute;
+    top: -17px;
+    left: 14px;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    border-width: 8px;
+    border-style: solid;
+    border-color: transparent transparent #253347 transparent;
+}
+
+/* Inner arrow fill */
+.postItem .chatbox .textchat::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: -7px;
+    width: 0;
+    height: 0;
+    border-width: 7px;
+    border-style: solid;
+    border-color: transparent transparent #1c2733 transparent;
+}
+
+/* ── Status indicator ────────────────────────────────── */
+
+.status-indicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid #0d1117;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.status-indicator.online {
+    background-color: #00e676;
+    box-shadow: 0 0 6px rgba(0, 230, 118, 0.6), 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.status-indicator.offline {
+    background-color: #4a6080;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.06);
+}

@@ -1,0 +1,85 @@
+#!/usr/bin/env php
+<?php
+/**
+ * SketchCMS CLI Management Tool
+ * Usage: php system/bin/cms <command>
+ */
+
+if (PHP_SAPI !== 'cli') {
+    exit("This script must be run from the command line.\n");
+}
+
+$root = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
+$command = $argv[1] ?? 'help';
+
+switch ($command) {
+    case 'cache:clear':
+        $cacheDir = $root . 'system' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR;
+        $envCache = $cacheDir . 'env.cache.php';
+        if (is_file($envCache)) {
+            if (function_exists('opcache_invalidate')) {
+                @opcache_invalidate($envCache, true);
+            }
+            @unlink($envCache);
+            echo "[OK] Cleared env.cache.php\n";
+        } else {
+            echo "[INFO] No env.cache.php found.\n";
+        }
+        break;
+
+    case 'cache:warmup':
+        require_once $root . 'system' . DIRECTORY_SEPARATOR . 'classes' . DIRECTORY_SEPARATOR . 'Env.php';
+        $envCache = $root . 'system' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'env.cache.php';
+        if (is_file($envCache)) {
+            @unlink($envCache);
+        }
+        Env::load($root . '.env');
+        // Trigger cache write using default path
+        Env::load();
+        echo "[OK] Environment cache warmed up.\n";
+        break;
+
+    case 'opcache:status':
+        if (!function_exists('opcache_get_status')) {
+            echo "[WARN] OPcache extension is not loaded.\n";
+            exit(0);
+        }
+        $status = @opcache_get_status(false);
+        if (!$status) {
+            echo "[WARN] OPcache is disabled in php.ini (or opcache.enable_cli=0).\n";
+            exit(0);
+        }
+        $mem = $status['memory_usage'] ?? [];
+        $stats = $status['opcache_statistics'] ?? [];
+        echo "OPcache Enabled   : Yes\n";
+        echo sprintf("Memory Used       : %.2f MB / Free: %.2f MB\n", ($mem['used_memory'] ?? 0) / 1048576, ($mem['free_memory'] ?? 0) / 1048576);
+        echo "Cached Scripts    : " . ($stats['num_cached_scripts'] ?? 0) . "\n";
+        echo sprintf("Hit Rate          : %.2f%%\n", $stats['opcache_hit_rate'] ?? 0);
+        break;
+
+    case 'env:check':
+        require $root . 'system' . DIRECTORY_SEPARATOR . 'bootstrap.php';
+        echo "APP_TIMEZONE : " . Env::get('APP_TIMEZONE', 'N/A') . "\n";
+        echo "DB_HOST      : " . Env::get('DB_HOST', 'N/A') . "\n";
+        echo "DB_NAME      : " . Env::get('DB_NAME', 'N/A') . "\n";
+        try {
+            $db = Container::get(DB::class);
+            $db->query('SELECT 1');
+            echo "DB Status    : [OK] Connected\n";
+        } catch (Throwable $e) {
+            echo "DB Status    : [ERROR] " . $e->getMessage() . "\n";
+        }
+        break;
+
+    case 'help':
+    default:
+        echo "SketchCMS CLI\n";
+        echo "Usage: php system/bin/cms <command>\n\n";
+        echo "Available commands:\n";
+        echo "  cache:clear     Xóa cache cấu hình (.env compiled cache)\n";
+        echo "  cache:warmup    Biên dịch lại cache cấu hình .env\n";
+        echo "  opcache:status  Kiểm tra trạng thái OPcache\n";
+        echo "  env:check       Kiểm tra cấu hình .env và kết nối Database\n";
+        echo "  help            Hiển thị hướng dẫn này\n";
+        break;
+}
