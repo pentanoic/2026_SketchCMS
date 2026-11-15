@@ -96,7 +96,7 @@ class homeController extends Controller
         $order_by = $this->request->getVar('order_by', 'update_time');
         $order_by = mb_strtolower($order_by);
         $order_by = htmlspecialchars($order_by);
-        if (in_array($order_by, config('system.PostList.order_by'))) {
+        if (in_array($order_by, Env::getList('POST_LIST_ORDER_BY', ['id', 'time', 'update_time', 'view']))) {
             $page_query .= 'order_by=' . $order_by . '&';
         } else {
             $order_by = 'update_time';
@@ -105,7 +105,7 @@ class homeController extends Controller
         $sort = $this->request->getVar('sort', 'desc');
         $sort = mb_strtolower($sort);
         $sort = htmlspecialchars($sort);
-        if (in_array($sort, config('system.PostList.sort'))) {
+        if (in_array($sort, Env::getList('POST_LIST_SORT', ['asc', 'desc']))) {
             $page_query .= 'sort=' . $sort . '&';
         } else {
             $sort = 'desc';
@@ -175,8 +175,8 @@ class homeController extends Controller
             'PostList' => $PostList,
             'PostListPaging' => paging($page_query, $page, $page_max),
             'PostListConfig' => [
-                'allow_order_by' => config('system.PostList.order_by'),
-                'allow_sort' => config('system.PostList.sort'),
+                'allow_order_by' => Env::getList('POST_LIST_ORDER_BY', ['id', 'time', 'update_time', 'view']),
+                'allow_sort' => Env::getList('POST_LIST_SORT', ['asc', 'desc']),
                 'order_by' => $order_by,
                 'sort' => $sort
             ],

@@ -62,14 +62,19 @@ if (!function_exists('captchaSrc')) {
 
 if (!function_exists('config')) {
     /**
-     * Get autoload config
+     * Get autoload config or environment config
      *
      * @param string|null $path
      * @param mixed $default
+     * @param bool $env
      * @return Config|mixed
      */
-    function config(string $path = null, $default = null)
+    function config(string $path = null, $default = null, bool $env = false)
     {
+        if ($env) {
+            return Env::get((string) $path, $default);
+        }
+
         $config = Container::get(Config::class);
 
         if (is_null($path)) {
@@ -253,7 +258,7 @@ if (!function_exists('get_template')) {
             return '/' . $_SESSION['template_preview'];
         }
         // Sử dụng template từ config (giao diện được chọn trong manager)
-        $configured_template = config('system.app.default_template');
+        $configured_template = config('DEFAULT_TEMPLATE', 'default', true);
         if (empty($configured_template) || !in_array($configured_template, $valid_templates)) {
             $configured_template = $valid_templates[0] ?? 'default';
         }

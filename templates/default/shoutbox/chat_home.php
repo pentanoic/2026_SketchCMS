@@ -95,7 +95,7 @@
     };
     var totalChat = "<?= _e($chat_count) ?>";
     var pageID = 1;
-    var sysRateLimit = <?= (int)(config('system.security.rate_limit') ?? 1) * 1000 ?>;
+    var sysRateLimit = <?= (int)(config('SECURITY_RATE_LIMIT', 1, true)) * 1000 ?>;
     var chatbox = "<?= url('/shoutbox/list', false) ?>",
         chat_send = "<?= url('/shoutbox/send', false) ?>",
         chat_count = "<?= url('/shoutbox/count', false) ?>",

@@ -90,6 +90,26 @@ class managerController extends Controller
             $systemConfig['app']['site']['scheme'] = $_POST['app_scheme'] ?? $systemConfig['app']['site']['scheme'];
             $systemConfig['app']['site']['host'] = $_POST['app_host'] ?? $systemConfig['app']['site']['host'];
             
+            $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
             Env::saveSystemConfig($systemConfig);
             setcookie('manager_settings_success', 'Cập nhật cấu hình thành công!', time() + 5, '/');
             redirect(url('/manager/settings'));
@@ -173,7 +193,7 @@ class managerController extends Controller
             }
         }
         
-        $default_template = config('system.app.default_template');
+        $default_template = config('DEFAULT_TEMPLATE', 'default', true);
         if (empty($default_template)) {
             $default_template = $valid_templates[0]['folder'] ?? '';
         }
@@ -201,6 +221,26 @@ class managerController extends Controller
             $systemConfig = require $systemConfigPath;
             $systemConfig['app']['default_template'] = $template;
             
+            $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
             Env::saveSystemConfig($systemConfig);
         }
         
@@ -822,6 +862,26 @@ class managerController extends Controller
                 unset($systemConfig['url_rules']['rewrite'][$path]);
             }
 
+            $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
             Env::saveSystemConfig($systemConfig);
             setcookie('manager_url_success', 'Đã xóa quy tắc!', time() + 5, '/');
         }
@@ -1221,7 +1281,27 @@ class managerController extends Controller
                 }
                 if (!in_array($name, $systemConfig['app']['installed_modules'])) {
                     $systemConfig['app']['installed_modules'][] = $name;
-                    Env::saveSystemConfig($systemConfig);
+                    $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
+            Env::saveSystemConfig($systemConfig);
                 }
 
                 setcookie('manager_module_success', 'Đã cài đặt module thành công!', time() + 5, '/');
@@ -1265,7 +1345,27 @@ class managerController extends Controller
                         unset($systemConfig['app']['installed_modules'][$key]);
                         // Reindex array
                         $systemConfig['app']['installed_modules'] = array_values($systemConfig['app']['installed_modules']);
-                        Env::saveSystemConfig($systemConfig);
+                        $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
+            Env::saveSystemConfig($systemConfig);
                     }
                 }
 
@@ -1347,7 +1447,27 @@ class managerController extends Controller
                 if (isset($systemConfig['app']['installed_modules']) && in_array($name, $systemConfig['app']['installed_modules'])) {
                     $idx = array_search($name, $systemConfig['app']['installed_modules']);
                     $systemConfig['app']['installed_modules'][$idx] = $newName;
-                    Env::saveSystemConfig($systemConfig);
+                    $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
+            Env::saveSystemConfig($systemConfig);
                 }
                 
                 $name = $newName; // update for description.json
@@ -1788,6 +1908,26 @@ class managerController extends Controller
             
             $systemConfig['security']['rate_limit'] = $rate_limit;
             
+            $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
             Env::saveSystemConfig($systemConfig);
             
             $success = 'Cập nhật cấu hình bảo mật thành công!';
@@ -1947,7 +2087,15 @@ class managerController extends Controller
         if ($this->request->user()->user['level'] < 126) {
             redirect(url('/manager'));
         }
-        $smtp = config('system.smtp');
+        $smtp = [
+            'host' => (string) config('SMTP_HOST', 'smtp.gmail.com', true),
+            'port' => (int) config('SMTP_PORT', 465, true),
+            'user' => (string) config('SMTP_USER', '', true),
+            'pass' => (string) config('SMTP_PASS', '', true),
+            'encrypt' => (string) config('SMTP_ENCRYPT', 'ssl', true),
+            'from_email' => (string) config('SMTP_FROM_EMAIL', '', true),
+            'from_name' => (string) config('SMTP_FROM_NAME', 'SketchCMS', true),
+        ];
         
         if ($this->request->getMethod() === 'POST') {
             if (!$this->verifyAdminAction('smtp', 'manager_smtp_error', '/manager/smtp')) return;
@@ -1974,6 +2122,26 @@ class managerController extends Controller
             $systemConfig = include($systemFile);
             $systemConfig['smtp'] = $new_smtp;
             
+            $envAdminAccount = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $currentAccount = strtolower(trim((string) ($this->request->user()->user['nick'] ?? '')));
+            if ($envAdminAccount !== '' && $currentAccount === $envAdminAccount && isset($_POST['db_connection'])) {
+                $dbConnection = strtolower(trim((string) $_POST['db_connection']));
+                if (in_array($dbConnection, ['mysql', 'sqlite'], true)) {
+                    $oldConnection = strtolower((string) Env::get('DB_CONNECTION', 'mysql'));
+                    if ($oldConnection !== $dbConnection) {
+                        DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
+                    }
+                    Env::set('DB_CONNECTION', $dbConnection);
+                    $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
+                    if (is_file($envCache)) {
+                        if (function_exists('opcache_invalidate')) {
+                            @opcache_invalidate($envCache, true);
+                        }
+                        @unlink($envCache);
+                    }
+                }
+            }
+
             Env::saveSystemConfig($systemConfig);
             
             return view('manager/smtp', [

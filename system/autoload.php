@@ -36,8 +36,8 @@ function autoload($name) {
             $file = SYSTEM . 'services' . DS . $name . '.php';
         }
     }
-    // Autoload cho Interface
-    elseif (preg_match('/^([a-z]+)Interface$/i', $name)) {
+    // Autoload cho Interface và Middleware
+    elseif (preg_match('/^([a-z]+)(Interface|Middleware)$/i', $name)) {
         $file = APP . 'interfaces' . DS . $name . '.php';
         if (!file_exists($file)) {
             $file = SYSTEM . 'interfaces' . DS . $name . '.php';

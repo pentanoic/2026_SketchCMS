@@ -351,7 +351,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lozad.js/1.16.0/lozad.min.js"></script>
 
     <?php
-    $mediaCfg = config('system.media', []);
+    $mediaCfg = [
+            'telegram_upload_mode' => (string) config('TELEGRAM_UPLOAD_MODE', 'direct', true),
+            'cloudflare_worker_url' => (string) config('CLOUDFLARE_WORKER_URL', '', true),
+        ];
     $telegramUploadMode = $mediaCfg['telegram_upload_mode'] ?? (string) Env::get('TELEGRAM_UPLOAD_MODE', 'cloudflare');
     $cloudflareWorkerUrl = rtrim($mediaCfg['cloudflare_worker_url'] ?? (string) Env::get('CLOUDFLARE_WORKER_URL', 'https://nosineup.stockage.workers.dev'), '/');
     $telegramUploadUrl = ($telegramUploadMode === 'direct') ? url('/media/upload', false) : $cloudflareWorkerUrl . '/upload';

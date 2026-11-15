@@ -21,12 +21,12 @@ class mediaController extends Controller
     {
         parent::__construct();
         $this->mediaModel = $this->load->model('media');
-        // Lấy cấu hình từ hệ thống (.env -> system.php)
-        $this->mediaConfig = config('system.media') ?: [
-            'telegram_upload_mode' => 'cloudflare',
-            'telegram_bot_token' => '',
-            'telegram_chat_id' => '',
-            'cloudflare_worker_url' => ''
+        // Lấy cấu hình trực tiếp từ .env
+        $this->mediaConfig = [
+            'telegram_upload_mode' => (string) config('TELEGRAM_UPLOAD_MODE', 'cloudflare', true),
+            'telegram_bot_token' => (string) config('TELEGRAM_BOT_TOKEN', '', true),
+            'telegram_chat_id' => (string) config('TELEGRAM_CHAT_ID', '', true),
+            'cloudflare_worker_url' => (string) config('CLOUDFLARE_WORKER_URL', '', true)
         ];
 
         // Chặn khách, chỉ cho phép người dùng đăng nhập tải file

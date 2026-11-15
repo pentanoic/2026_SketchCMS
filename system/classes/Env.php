@@ -28,6 +28,21 @@ class Env
             return;
         }
 
+        $cacheDir = (defined('SYSTEM') ? SYSTEM : dirname(__DIR__) . DIRECTORY_SEPARATOR) . 'cache';
+        $cacheFile = $cacheDir . DIRECTORY_SEPARATOR . 'env.cache.php';
+        $envMtime = @filemtime($path);
+        if ($filePath === null && is_file($cacheFile) && $envMtime !== false && @filemtime($cacheFile) >= $envMtime) {
+            $cached = @include $cacheFile;
+            if (is_array($cached)) {
+                self::$vars = $cached;
+                foreach ($cached as $k => $v) {
+                    $_ENV[$k] = $v;
+                }
+                self::$loaded = true;
+                return;
+            }
+        }
+
         $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if (!is_array($lines)) {
             self::$loaded = true;
@@ -68,6 +83,18 @@ class Env
         }
 
         self::$loaded = true;
+
+        if ($filePath === null) {
+            if (!is_dir($cacheDir)) {
+                @mkdir($cacheDir, 0755, true);
+            }
+            if (is_dir($cacheDir) && is_writable($cacheDir)) {
+                @file_put_contents($cacheFile, "<?php\nreturn " . var_export(self::$vars, true) . ";\n", LOCK_EX);
+                if (function_exists('opcache_invalidate')) {
+                    @opcache_invalidate($cacheFile, true);
+                }
+            }
+        }
     }
 
     /**

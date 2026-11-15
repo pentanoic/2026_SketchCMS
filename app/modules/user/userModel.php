@@ -171,10 +171,10 @@ class userModel extends Model
     public function UserList($per = 10, $order_by = 'level', $sort = 'desc', $start = 0)
     {
         // Kiểm tra giá trị của $order_by và $sort
-        if (!in_array($order_by, config('system.UserList.order_by'))) {
+        if (!in_array($order_by, Env::getList('USER_LIST_ORDER_BY', ['level', 'xu', 'post']))) {
             $order_by = 'level';
         }
-        if (!in_array($sort, config('system.UserList.sort'))) {
+        if (!in_array($sort, Env::getList('USER_LIST_SORT', ['asc', 'desc']))) {
             $sort = 'desc';
         }
 

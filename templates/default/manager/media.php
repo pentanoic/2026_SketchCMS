@@ -182,7 +182,12 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Tậ
 </div>
 
 <?php
-$mediaConfig = config('system.media', []);
+$mediaConfig = [
+    'telegram_upload_mode' => (string) config('TELEGRAM_UPLOAD_MODE', 'direct', true),
+    'telegram_bot_token' => (string) config('TELEGRAM_BOT_TOKEN', '', true),
+    'telegram_chat_id' => (string) config('TELEGRAM_CHAT_ID', '', true),
+    'cloudflare_worker_url' => (string) config('CLOUDFLARE_WORKER_URL', '', true),
+];
 $telegram_upload_mode = $mediaConfig['telegram_upload_mode'] ?? 'cloudflare';
 $telegram_bot_token = $mediaConfig['telegram_bot_token'] ?? '';
 $telegram_chat_id = $mediaConfig['telegram_chat_id'] ?? '';

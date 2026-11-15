@@ -110,7 +110,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                                     <!-- Installed Custom Modules -->
                                     <?php foreach ($extended_modules as $m): ?>
                                         <?php 
-                                        $installedModules = config('system.app.installed_modules', []);
+                                        $installedModules = Env::getList('INSTALLED_MODULES', []);
                                         $isInstalled = in_array($m['name'], $installedModules);
                                         
                                         if ($isInstalled):
@@ -168,7 +168,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                                     <?php 
                                     $hasUninstalled = false;
                                     foreach ($extended_modules as $m): 
-                                        $installedModules = config('system.app.installed_modules', []);
+                                        $installedModules = Env::getList('INSTALLED_MODULES', []);
                                         $isInstalled = in_array($m['name'], $installedModules);
                                         
                                         if (!$isInstalled):

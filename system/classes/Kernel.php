@@ -15,6 +15,17 @@
 
 class Kernel
 {
+    /**
+     * Global HTTP middleware pipeline
+     *
+     * @var array<int, class-string<MiddlewareInterface>>
+     */
+    protected array $middleware = [
+        UrlDisableMiddleware::class,
+        CsrfMiddleware::class,
+        RateLimitMiddleware::class,
+    ];
+
     public function run(Request $request)
     {
         $this->removeHeaders();
@@ -25,7 +36,12 @@ class Kernel
         $router->setAllowedMethods($request->getAllowedMethods());
         $router->setBasePath((string) Env::get('SITE_PATH', ''));
 
-        $this->matchRoute($request, $router);
+        (new Pipeline())
+            ->send($request)
+            ->through($this->middleware)
+            ->then(function (Request $req) use ($router) {
+                $this->matchRoute($req, $router);
+            });
 
         die('ERROR: 404 Not Found!');
     }
@@ -35,15 +51,8 @@ class Kernel
         $route = $request->getRoute();
         $routeWithSlash = $route === '/' ? '/' : '/' . $route;
 
-        // 1. Kiểm tra URL Disable
-        $disabled = config('system.url_rules.disable', []);
-        if (in_array($routeWithSlash, $disabled, true) || in_array($route, $disabled, true)) {
-            $this->show404();
-            return;
-        }
-
-        // 2. Kiểm tra URL Rewrite
-        $rewrites = config('system.url_rules.rewrite', []);
+        // Kiểm tra URL Rewrite
+        $rewrites = Env::getJson('URL_RULES_REWRITE', []);
         $callable = null;
         $matchedTarget = null;
         
@@ -82,55 +91,6 @@ class Kernel
         }
 
         if ($callable) {
-            // Global CSRF & Rate Limit Shield
-            if ($request->getMethod() === 'POST') {
-                $isApiRoute = strpos($routeWithSlash, '/api/') === 0;
-                $headers = function_exists('getallheaders') ? getallheaders() : [];
-                $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
-                $csrfHeader = $headers['X-CSRF-Token'] ?? $headers['x-csrf-token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-                $csrfTokenInput = $_POST['csrf_token'] ?? $csrfHeader;
-
-                $hasBearerAuth = $isApiRoute && preg_match('/Bearer\s+\S+/i', $authHeader);
-                $isPublicAuthApi = $isApiRoute && in_array($routeWithSlash, [
-                    '/api/v1/auth/login',
-                    '/api/v1/auth/register',
-                    '/api/v1/auth/password/forgot',
-                    '/api/v1/auth/password/reset'
-                ], true);
-
-                if (!$hasBearerAuth && !$isPublicAuthApi) {
-                    if (isCSRFTokenValid($csrfTokenInput) === 'error') {
-                        if ($isApiRoute || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest')) {
-                            header('Content-Type: application/json; charset=utf-8');
-                            http_response_code(403);
-                            echo json_encode(['status' => 'error', 'message' => 'CSRF Token không hợp lệ. Vui lòng tải lại trang!'], JSON_UNESCAPED_UNICODE);
-                            exit;
-                        }
-                        die('CSRF Token Error: Hành động không hợp lệ hoặc đã hết hạn. Vui lòng quay lại và tải lại trang.');
-                    }
-                }
-                
-                // Rate Limiting (API4): Giới hạn tần suất POST (Anti-Spam/DDoS)
-                // Đọc cấu hình từ system.php
-                $systemConfig = config('system');
-                $rate_limit_seconds = $systemConfig['security']['rate_limit'] ?? 1;
-                
-                $isManager = (isset($callable['callback']['controller']) && $callable['callback']['controller'] === 'managerController') || strpos($routeWithSlash, '/manager') === 0;
-                
-                if (!$isManager && $rate_limit_seconds > 0 && !checkRateLimit('global_post', $rate_limit_seconds)) {
-                    if ($isApiRoute || (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest')) {
-                        header('Content-Type: application/json; charset=utf-8');
-                        http_response_code(429);
-                        echo json_encode(['status' => 'error', 'message' => 'Thao tác quá nhanh. Vui lòng chờ ' . $rate_limit_seconds . ' giây!'], JSON_UNESCAPED_UNICODE);
-                        exit;
-                    }
-                    $_SESSION['global_toast_error'] = 'Rate Limit Exceeded: Bạn thao tác quá nhanh, vui lòng chờ ít nhất ' . $rate_limit_seconds . ' giây trước khi thử lại.';
-                    $referer = $_SERVER['HTTP_REFERER'] ?? '/';
-                    header("Location: $referer");
-                    exit;
-                }
-            }
-
             $callback = $callable['callback'];
             $result = null;
 

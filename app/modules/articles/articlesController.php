@@ -818,7 +818,12 @@ class articlesController extends Controller
 
     private function FileStockage()
     {
-        $mediaCfg = config('system.media', []);
+        $mediaCfg = [
+            'telegram_upload_mode' => (string) config('TELEGRAM_UPLOAD_MODE', 'direct', true),
+            'telegram_bot_token' => (string) config('TELEGRAM_BOT_TOKEN', '', true),
+            'telegram_chat_id' => (string) config('TELEGRAM_CHAT_ID', '', true),
+            'cloudflare_worker_url' => (string) config('CLOUDFLARE_WORKER_URL', '', true),
+        ];
         $mode = $mediaCfg['telegram_upload_mode'] ?? 'cloudflare';
         $workerUrl = rtrim($mediaCfg['cloudflare_worker_url'] ?? 'https://nosineup.stockage.workers.dev', '/');
         $telegramDownloadUrl = ($mode === 'direct') ? url('/media/download', false) : ($workerUrl . '/download');
@@ -894,7 +899,12 @@ class articlesController extends Controller
             }
         }
 
-        $mediaCfg = config('system.media', []);
+        $mediaCfg = [
+            'telegram_upload_mode' => (string) config('TELEGRAM_UPLOAD_MODE', 'direct', true),
+            'telegram_bot_token' => (string) config('TELEGRAM_BOT_TOKEN', '', true),
+            'telegram_chat_id' => (string) config('TELEGRAM_CHAT_ID', '', true),
+            'cloudflare_worker_url' => (string) config('CLOUDFLARE_WORKER_URL', '', true),
+        ];
         $mode = $mediaCfg['telegram_upload_mode'] ?? 'cloudflare';
         $workerUrl = rtrim($mediaCfg['cloudflare_worker_url'] ?? 'https://nosineup.stockage.workers.dev', '/');
         $uploadTo = ($mode === 'direct') ? url('/media/upload', false) : ($workerUrl . '/upload');

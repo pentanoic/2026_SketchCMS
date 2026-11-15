@@ -247,7 +247,7 @@ class custom_headlessController extends Controller
      */
     public function register()
     {
-        $disabledRoutes = config('system.url_rules.disable', []);
+        $disabledRoutes = Env::getList('URL_RULES_DISABLE', []);
         if (in_array('/register', $disabledRoutes, true) || in_array('register', $disabledRoutes, true)) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Registration is currently disabled'], 403);
         }
@@ -990,7 +990,15 @@ class custom_headlessController extends Controller
             $this->userModel->SetResetToken($email, $token, $expires);
 
             // Gửi email nếu đã cấu hình SMTP (không bao giờ trả raw token về JSON response - chống API6 Account Takeover)
-            $smtpConfig = config('system.smtp');
+            $smtpConfig = [
+            'host' => (string) config('SMTP_HOST', 'smtp.gmail.com', true),
+            'port' => (int) config('SMTP_PORT', 465, true),
+            'user' => (string) config('SMTP_USER', '', true),
+            'pass' => (string) config('SMTP_PASS', '', true),
+            'encrypt' => (string) config('SMTP_ENCRYPT', 'ssl', true),
+            'from_email' => (string) config('SMTP_FROM_EMAIL', '', true),
+            'from_name' => (string) config('SMTP_FROM_NAME', 'SketchCMS', true),
+        ];
             if (!empty($smtpConfig['host'])) {
                 try {
                     $mail = new \PHPMailer\PHPMailer\PHPMailer(true);

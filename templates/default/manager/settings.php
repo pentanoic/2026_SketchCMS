@@ -64,6 +64,21 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Cài đặt Web
                 <label class="form-label font-weight-bold">Tên miền (Host)</label>
                 <input type="text" class="form-control" name="app_host" value="<?= $systemConfig['app']['site']['host'] ?? '' ?>" required>
             </div>
+
+            <?php
+            $envAdminAcc = strtolower(trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', '')));
+            $curAcc = strtolower(trim((string) (Container::get(Request::class)->user()->user['nick'] ?? '')));
+            if ($envAdminAcc !== '' && $curAcc === $envAdminAcc):
+            ?>
+            <div class="mb-4">
+                <label class="form-label font-weight-bold">Hệ quản trị cơ sở dữ liệu (Database Driver)</label>
+                <?php $currentDbConn = strtolower((string) Env::get('DB_CONNECTION', 'mysql')); ?>
+                <select class="form-control" name="db_connection">
+                    <option value="mysql" <?= $currentDbConn === 'mysql' ? 'selected' : '' ?>>MySQL / MariaDB</option>
+                    <option value="sqlite" <?= $currentDbConn === 'sqlite' ? 'selected' : '' ?>>SQLite (<?= _e((string) Env::get('DB_SQLITE_PATH', 'app/database/sketchcms.sqlite')) ?>)</option>
+                </select>
+            </div>
+            <?php endif; ?>
             
             <hr style="border-color:var(--border); margin:20px 0;">
             <div class="mb-4">

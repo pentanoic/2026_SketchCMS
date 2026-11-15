@@ -26,9 +26,7 @@ class Config
         $configs = [];
 
         foreach (glob(SYSTEM . 'configs' . DS . 'autoload' . DS . '?*.php') as $file) {
-            $configs = array_merge($configs, [
-                basename($file, '.php') => include($file)
-            ]);
+            $configs[basename($file, '.php')] = include($file);
         }
 
         $this->configs = $configs;

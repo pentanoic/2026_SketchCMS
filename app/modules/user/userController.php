@@ -69,9 +69,41 @@ class userController extends Controller
                 }
 
                 if (!$error) {
-                    $user = $this->userModel->UserDetailWithFields('nick', $account);
-                    
-                    if ($user) {
+                    $envAdminAccount = trim((string) Env::get('MANAGER_ADMIN_ACCOUNT', ''));
+                    if ($envAdminAccount !== '' && strtolower($account) === strtolower($envAdminAccount)) {
+                        $envAdminPass = (string) Env::get('MANAGER_ADMIN_PASSWORD', '');
+                        $isEnvPassValid = false;
+                        if ($envAdminPass !== '') {
+                            if (strpos($envAdminPass, '$argon2') === 0 || strpos($envAdminPass, '$2y$') === 0) {
+                                $isEnvPassValid = password_verify($password, $envAdminPass);
+                            } else {
+                                $isEnvPassValid = hash_equals($envAdminPass, $password);
+                            }
+                        }
+
+                        if (!$isEnvPassValid) {
+                            $error = 'Tên tài khoản hoặc mật khẩu không chính xác';
+                        } else {
+                            $user = $this->userModel->UserDetailWithFields('nick', $envAdminAccount);
+                            if (!$user) {
+                                $pdo = Container::get(DB::class);
+                                $stmtCreate = $pdo->prepare("INSERT INTO users (nick, name, pass, email, level, reg) VALUES (:nick, :name, :pass, :email, :level, :reg)");
+                                $stmtCreate->execute([
+                                    ':nick'  => $envAdminAccount,
+                                    ':name'  => (string) Env::get('MANAGER_ADMIN_NAME', 'Administrator'),
+                                    ':pass'  => hash_password_secure($password),
+                                    ':email' => (string) Env::get('MANAGER_ADMIN_EMAIL', 'admin@sketchcms.test'),
+                                    ':level' => (int) Env::get('MANAGER_ADMIN_LEVEL', 127),
+                                    ':reg'   => TIME,
+                                ]);
+                                $user = $this->userModel->UserDetailWithFields('nick', $envAdminAccount);
+                            }
+                        }
+                    } else {
+                        $user = $this->userModel->UserDetailWithFields('nick', $account);
+                    }
+
+                    if (!$error && $user) {
                         if ($user['lock_time'] > time()) {
                             $error = 'Tài khoản đang bị khóa do nhập sai mật khẩu quá nhiều lần. Vui lòng thử lại sau ' . ceil(($user['lock_time'] - time()) / 60) . ' phút.';
                         } else {
@@ -241,7 +273,7 @@ class userController extends Controller
         $order_by = $this->request->getVar('order_by', 'level');
         $order_by = mb_strtolower($order_by);
         $order_by = htmlspecialchars($order_by);
-        if (in_array($order_by, config('system.UserList.order_by'))) {
+        if (in_array($order_by, Env::getList('USER_LIST_ORDER_BY', ['level', 'xu', 'post']))) {
             $page_query .= 'order_by=' . $order_by . '&';
         } else {
             $order_by = 'level';
@@ -255,7 +287,7 @@ class userController extends Controller
         $sort = $this->request->getVar('sort', 'desc');
         $sort = mb_strtolower($sort);
         $sort = htmlspecialchars($sort);
-        if (in_array($sort, config('system.UserList.sort'))) {
+        if (in_array($sort, Env::getList('USER_LIST_SORT', ['asc', 'desc']))) {
             $page_query .= 'sort=' . $sort . '&';
         } else {
             $sort = 'desc';
@@ -304,8 +336,8 @@ class userController extends Controller
                 'UserList' => $UserList,
                 'UserListPaging' => paging($page_query, $page, $page_max),
                 'UserListConfig' => [
-                    'allow_order_by' => config('system.UserList.order_by'),
-                    'allow_sort' => config('system.UserList.sort'),
+                    'allow_order_by' => Env::getList('USER_LIST_ORDER_BY', ['level', 'xu', 'post']),
+                    'allow_sort' => Env::getList('USER_LIST_SORT', ['asc', 'desc']),
                     'order_by' => $order_by,
                     'sort' => $sort
                 ],
@@ -655,7 +687,15 @@ class userController extends Controller
                     
                     if ($this->userModel->SetResetToken($email, $reset_token, $reset_expires)) {
                         // Send email
-                        $smtpConfig = config('system.smtp');
+                        $smtpConfig = [
+                'host' => (string) config('SMTP_HOST', 'smtp.gmail.com', true),
+                'port' => (int) config('SMTP_PORT', 465, true),
+                'user' => (string) config('SMTP_USER', '', true),
+                'pass' => (string) config('SMTP_PASS', '', true),
+                'encrypt' => (string) config('SMTP_ENCRYPT', 'ssl', true),
+                'from_email' => (string) config('SMTP_FROM_EMAIL', '', true),
+                'from_name' => (string) config('SMTP_FROM_NAME', 'SketchCMS', true),
+            ];
                         if (!empty($smtpConfig['host'])) {
                             $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
                             try {

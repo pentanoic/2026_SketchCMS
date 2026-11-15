@@ -318,10 +318,10 @@ class articlesModel extends Model
             $sql .= ' WHERE c.id = :category_id';
         }
 
-        if (!in_array($order_by, config('system.PostList.order_by'))) {
+        if (!in_array($order_by, Env::getList('POST_LIST_ORDER_BY', ['id', 'time', 'update_time', 'view']))) {
             $order_by = 'update_time';
         }
-        if (!in_array($sort, config('system.PostList.sort'))) {
+        if (!in_array($sort, Env::getList('POST_LIST_SORT', ['asc', 'desc']))) {
             $sort = 'desc';
         }
 

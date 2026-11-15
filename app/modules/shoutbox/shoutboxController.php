@@ -63,8 +63,7 @@ class shoutboxController extends Controller
             $user_id = $this->request->user()->id;
             $user = $this->userModel->UserDetailWithFields('id', $user_id);
 
-            $systemConfig = config('system');
-            $sysRateLimit = isset($systemConfig['security']['rate_limit']) ? (int)$systemConfig['security']['rate_limit'] : 1;
+            $sysRateLimit = (int) config('SECURITY_RATE_LIMIT', 1, true);
 
             // Admin và Mod không bị giới hạn thời gian (dựa trên bài học phân quyền)
             if (isset($user['level']) && $user['level'] >= 100) {
