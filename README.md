@@ -1,107 +1,25 @@
 # SketchCMS
 
+**SketchCMS** là một mã nguồn quản trị nội dung (CMS) nhẹ, linh hoạt và dễ mở rộng, được xây dựng theo kiến trúc **HMVC** trên nền tảng PHP 8.0+, hỗ trợ đồng thời **MySQL** và **SQLite** thông qua hệ thống **Fluent Query Builder (`db()`)**.
 
-SketchCMS là một mã nguồn quản trị nội dung miễn phí, còn non trẻ. Mã nguồn được xây dựng với định hướng trở thành một nền tảng nhẹ, linh hoạt và dễ mở rộng dành cho các website và hệ thống quản trị nội dung. Được phát triển dựa trên mô hình kiến trúc HMVC, SketchCMS tổ chức mã nguồn theo từng module độc lập, giúp quá trình phát triển, bảo trì và mở rộng hệ thống trở nên rõ ràng hơn. Mỗi module có thể đảm nhiệm một chức năng riêng, đồng thời có khả năng phối hợp với các thành phần khác trong toàn hệ thống.
+## Tính năng nổi bật
 
- 
-## Tính năng
- 
-* Bài viết - chuyên mục SEO, BBCode, syntax highlighting, ghim bài, lượt thích, bình luận, tìm kiếm, sitemap XML;
-* Chương - chia bài thành nhiều chương, phù hợp đăng truyện hoặc tài liệu nhiều phần;
-* Tệp đính kèm - lưu trữ qua Telegram CDN, hỗ trợ mật khẩu;
-* Thành viên - hồ sơ cá nhân, avatar, ảnh bìa, waifu, danh sách chặn;
-* Tin nhắn riêng tích hợp mã hóa E2E;
-* Phòng chat thời gian thực;
-* Quản trị - Trang tĩnh, module gốc, module mở rộng, tùy biến template, rewrite/disable url, smpt;
-* Vận hành an toàn - CSRF, rate limit, chống flood IP, brute force, bcrypt, security headers;
-* API (đang phát triển) - Một custom module định hướng mã nguồn trở thành HeadlessCMS.
----
- 
-## Yêu cầu môi trường
- 
-| Thành phần | Yêu cầu |
-|---|---|
-| PHP | 8.0+ |
-| MySQL | 5.7+ hoặc MariaDB 10.3+ |
-| PHP Extensions | `pdo`, `pdo_mysql`, `mysqli`, `gd`, `openssl`, `mbstring` |
-| Web Server | Apache (mod_rewrite) hoặc Nginx |
-| Composer | 2.x |
- 
----
- 
-## Cài đặt
- 
-### 1. Tải mã nguồn
- 
-Tải file ZIP từ trang phát hành và giải nén vào thư mục `public_html` hoặc tương đương.
- 
-### 2. Cài đặt thư viện
- 
-```bash
-cd app
-composer install
-```
- 
-### 3. Cấu hình Web Server
- 
-**Apache** - tạo `.htaccess` ở thư mục gốc:
- 
-```apache
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]
-```
- 
-**Nginx:**
- 
-```nginx
-location / {
-    try_files $uri $uri/ /index.php?$query_string;
-}
-```
- 
-### 4. Phân quyền thư mục
- 
-```bash
-chmod 755 system/configs/
-chmod 755 system/files/
-chmod 755 templates/
-```
- 
-### 5. Tạo cơ sở dữ liệu
- 
-```sql
-CREATE DATABASE sketchcms CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-```
- 
-### 6. Chạy trình cài đặt
- 
-Trỏ trình duyệt đến `/install/` và làm theo các bước:
- 
-1. Chấp nhận điều khoản GNU GPL v3
-2. Kiểm tra môi trường - tất cả mục phải hiển thị OK
-3. Nhập thông tin kết nối database
-4. Tạo tài khoản Admin (level 127)
-5. Hoàn tất
-### 7. Sau khi cài đặt
- 
-Xóa thư mục `install/`:
- 
-```bash
-rm -rf install/
-```
- 
-Tắt chế độ debug trong `system/configs/init.php`:
- 
-```php
-define('APP_DEBUG', false);
-ini_set('display_errors', 0);
-```
- 
-Đổi các khóa bảo mật mặc định:
- 
-```php
-define('SECOND_PASSWORD', 'chuoi_ngau_nhien_cua_ban');
-define('E2E_SECRET_KEY', 'secret_key_cua_ban');
-```
+- **Bài viết & Chuyên mục**: Hỗ trợ SEO, BBCode, syntax highlighting, ghim bài, lượt thích, bình luận, từ khóa (tags), chương (chapter), tìm kiếm và `sitemap.xml`.
+- **Tệp đính kèm**: Lưu trữ và phân phối qua Telegram Bot API / Cloudflare Worker.
+- **Thành viên & Tương tác**: Hồ sơ cá nhân, phòng chat thời gian thực (`shoutbox`), tin nhắn riêng tư tích hợp mã hóa đầu cuối **E2E**.
+- **Quản trị linh hoạt (`/manager`)**: Quản lý module mở rộng (`custom_module`), trang tĩnh (`static_pages`), tùy biến đường dẫn (`url_rules`: Rewrite/Disable URL không cần sửa `.htaccess`), cấu hình SMTP, kiểm tra/chuyển đổi CSDL và bảo mật.
+- **Vận hành an toàn**: CSRF token, rate limit, phân quyền RBAC, bcrypt và security headers.
+
+## Tài liệu hướng dẫn
+
+Toàn bộ tài liệu chi tiết được lưu trong thư mục `guide/` (**[guide/README.md](guide/README.md)**):
+
+1. **[01 - Cài đặt & Vận hành](guide/01-install-and-operation.md)**
+2. **[02 - Hướng dẫn sử dụng Fluent DB (`db()`)](guide/02-fluent-db.md)**
+3. **[03 - Module mở rộng hợp lệ & Cách viết Module](guide/03-custom-module.md)**
+4. **[04 - Hướng dẫn viết Template](guide/04-template.md)**
+5. **[05 - Hướng dẫn sử dụng Rewrite / Disable URL (`url_rules`)](guide/05-url-rules.md)**
+6. **[06 - Hướng dẫn sử dụng Trang tĩnh (`static_pages`)](guide/06-static-pages.md)**
+7. **[07 - Hướng dẫn cấu hình Upload Telegram](guide/07-telegram-upload.md)**
+8. **[08 - Hướng dẫn cấu hình SMTP](guide/08-smtp-config.md)**
+9. **[09 - Hướng dẫn vận hành các Module mặc định](guide/09-core-modules.md)**
