@@ -206,7 +206,7 @@
             <!-- <div class="dw-nav-section">Điều hướng</div> -->
             <?php if (module_menu_check('articles')): ?>
                 <a href="<?= url('/') ?>"
-                    class="dw-nav-link<?= ($_SERVER['REQUEST_URI'] === '/' || str_starts_with($_SERVER['REQUEST_URI'], '/index') || str_starts_with($_SERVER['REQUEST_URI'], '/home') || str_starts_with($_SERVER['REQUEST_URI'], '/articles?') || $_SERVER['REQUEST_URI'] === '/articles') ? ' active' : '' ?>">
+                    class="dw-nav-link<?= (in_array($_SERVER['REQUEST_URI'], ['/','/articles']) || array_filter(['/index','/home','/articles/'], fn($path) => str_starts_with($_SERVER['REQUEST_URI'], $path))) ? ' active' : '' ?>">
                     <span class="dw-nav-icon"><i class="fa fa-th-large"></i></span>
                     Diễn đàn
                 </a>

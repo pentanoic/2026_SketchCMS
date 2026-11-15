@@ -20,14 +20,7 @@ class mailModel extends Model
         $Sender = mb_strtolower($Sender);
         $Receiver = mb_strtolower($Receiver);
         $Sender_Receiver = $Sender . '_' . $Receiver;
-        $stmt = $this->db->prepare('
-            SELECT COUNT(*) as count_mail FROM mail WHERE sender_receiver = :sender_receiver
-        ');
-        $stmt->bindParam(':sender_receiver', $Sender_Receiver, \PDO::PARAM_STR);
-        $stmt->execute();
-        $counts = $stmt->fetch(\PDO::FETCH_ASSOC);
-        $stats = $counts['count_mail'];
-        return $stats;
+        return db('mail')->where('sender_receiver', $Sender_Receiver)->count();
     }
 
     public function MailList($MyDetail)
@@ -50,13 +43,10 @@ class mailModel extends Model
         $Receiver = mb_strtolower($Receiver);
         $Sender_Receiver = $Sender . '_' . $Receiver;
 
-        $stmt = $this->db->prepare('
-            SELECT * FROM mail WHERE sender_receiver = :sender_receiver ORDER BY id DESC LIMIT 1
-        ');
-        $stmt->bindParam(':sender_receiver', $Sender_Receiver, \PDO::PARAM_STR);
-        $stmt->execute();
-        $output = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $output;
+        return db('mail')
+            ->where('sender_receiver', $Sender_Receiver)
+            ->orderBy('id', 'DESC')
+            ->first();
     }
 
     public function MailDetailList($Sender, $Receiver, $per = 10, $start = 0)
@@ -65,15 +55,12 @@ class mailModel extends Model
         $Receiver = mb_strtolower($Receiver);
         $Sender_Receiver = $Sender . '_' . $Receiver;
 
-        $stmt = $this->db->prepare('
-            SELECT * FROM mail WHERE sender_receiver = :sender_receiver ORDER BY id DESC LIMIT :start, :per
-        ');
-        $stmt->bindParam(':sender_receiver', $Sender_Receiver, \PDO::PARAM_STR);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':per', $per, \PDO::PARAM_INT);
-        $stmt->execute();
-        $output = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $output;
+        return db('mail')
+            ->where('sender_receiver', $Sender_Receiver)
+            ->orderBy('id', 'DESC')
+            ->limit((int)$per)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function MailSend($SenderDetail, $ReceiverDetail, $content)
@@ -87,54 +74,38 @@ class mailModel extends Model
 
         // lưu vào người gửi
         if (!in_array($Receiver, $SenderMailList)) {
-            # thêm vào danh sách hộp thư nếu chưa có
-            $stmt = $this->db->prepare("UPDATE `users` SET `mail_list` = ? WHERE `nick` = ?");
-            $stmt->execute([$Receiver . '.' . $SenderDetail['mail_list'], $Sender]);
+            db('users')->where('nick', $Sender)->update([
+                'mail_list' => $Receiver . '.' . $SenderDetail['mail_list']
+            ]);
         } else {
-            # cập nhật lên danh sách đầu
             $updated_mail_list = $Receiver . '.' . str_replace($Receiver . '.', '', $SenderDetail['mail_list']);
-            $stmt = $this->db->prepare("UPDATE `users` SET `mail_list` = ? WHERE `nick` = ?");
-            $stmt->execute([$updated_mail_list, $Sender]);
+            db('users')->where('nick', $Sender)->update([
+                'mail_list' => $updated_mail_list
+            ]);
         }
-        # lưu dữ liệu vào bảng `mail`
-        $stmt_InstertToSender = $this->db->prepare('INSERT INTO `mail` SET
-            `sender_receiver` = :sender_receiver,
-            `nick` = :nick,
-            `content` = :content,
-            `time` = :time,
-            `view` = :view
-        ');
-        $stmt_InstertToSender->execute([
+        db('mail')->insert([
             'sender_receiver' => $Sender_Receiver,
             'nick' => $Sender,
             'content' => $content,
             'time' => TIME,
-            'view' => 'yes'
+            'view' => 'no'
         ]);
 
         // lưu vào người nhận
-        # thêm thông báo tin nhắn mới cho người nhận
-        $stmt = $this->db->prepare("UPDATE `users` SET `new_mail` = ? WHERE `nick` =?");
-        $stmt->execute([$Sender . '.' . $ReceiverDetail['new_mail'], $Receiver]);
-        # thêm vào danh sách tin nhắn
+        db('users')->where('nick', $Receiver)->update([
+            'new_mail' => $Sender . '.' . $ReceiverDetail['new_mail']
+        ]);
         if (!in_array($Sender, $ReceiverMailList)) {
-            # thêm vào danh sách hộp thư nếu chưa có
-            $stmt = $this->db->prepare("UPDATE `users` SET `mail_list` = ? WHERE `nick` = ?");
-            $stmt->execute([$Sender . '.' . $ReceiverDetail['mail_list'], $Receiver]);
+            db('users')->where('nick', $Receiver)->update([
+                'mail_list' => $Sender . '.' . $ReceiverDetail['mail_list']
+            ]);
         } else {
-            # cập nhật lên danh sách đầu
             $updated_mail_list = $Sender . '.' . str_replace($Sender . '.', '', $ReceiverDetail['mail_list']);
-            $stmt = $this->db->prepare("UPDATE `users` SET `mail_list` = ? WHERE `nick` = ?");
-            $stmt->execute([$updated_mail_list, $Receiver]);
+            db('users')->where('nick', $Receiver)->update([
+                'mail_list' => $updated_mail_list
+            ]);
         }
-        $stmt_InstertToReceiver = $this->db->prepare('INSERT INTO `mail` SET
-            `sender_receiver` = :sender_receiver,
-            `nick` = :nick,
-            `content` = :content,
-            `time` = :time,
-            `view` = :view
-        ');
-        $stmt_InstertToReceiver->execute([
+        db('mail')->insert([
             'sender_receiver' => $Receiver_Sender,
             'nick' => $Sender,
             'content' => $content,
@@ -147,11 +118,7 @@ class mailModel extends Model
     {
         $UserModel = $this->load->model('user');
         // lấy thông tin hàng hiện tại
-        $stmt = $this->db->prepare('
-            SELECT * FROM mail WHERE id = :id ORDER BY id DESC LIMIT 1
-        ');
-        $stmt->execute(['id' => $mail_id]);
-        $data = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $data = db('mail')->where('id', $mail_id)->orderBy('id', 'DESC')->first();
         if (!$data || empty($data['sender_receiver'])) {
             return null;
         }
@@ -168,15 +135,18 @@ class mailModel extends Model
         }
         // xóa tin nhắn mới
         $SenderNewMail = str_replace($Receiver . '.', '', $SenderDetail['new_mail']);
-        $stmt_update_user = $this->db->prepare('UPDATE `users` SET `new_mail` = :SenderNewMail WHERE `nick` = :Sender');
-        $stmt_update_user->execute(['SenderNewMail' => $SenderNewMail, 'Sender' => $Sender]);
+        db('users')->where('nick', $Sender)->update(['new_mail' => $SenderNewMail]);
         // cập nhật trong bảng `mail`
-        $stmt_update_mail = $this->db->prepare('UPDATE `mail` SET `view` = :view WHERE `id` = :id');
-        $stmt_update_mail->execute([
-            'view' => 'yes',
-            'id' => $mail_id
-        ]);
-        // cập nhật cột `new_mail` trong bảng `users`
+        db('mail')->where('id', (int)$mail_id)->update(['view' => 'yes']);
+
+        // đồng bộ trạng thái đã xem sang bản sao của người gửi
+        if ($Sender !== '' && $Receiver !== '') {
+            db('mail')
+                ->where('sender_receiver', $Receiver . '_' . $Sender)
+                ->where('nick', $data['nick'])
+                ->where('time', $data['time'])
+                ->update(['view' => 'yes']);
+        }
         return null;
     }
 
@@ -188,8 +158,7 @@ class mailModel extends Model
         } else {
             $SenderBlockListSave = $ReceiverDetail['nick'] . '.' . $SenderDetail['blocklist'];
         }
-        $stmt = $this->db->prepare('UPDATE `users` SET `blocklist` = :SenderBlockListSave WHERE `nick` = :Sender');
-        $stmt->execute(['SenderBlockListSave' => $SenderBlockListSave, 'Sender' => $SenderDetail['nick']]);
+        db('users')->where('nick', $SenderDetail['nick'])->update(['blocklist' => $SenderBlockListSave]);
 
         return null;
     }
@@ -198,49 +167,35 @@ class mailModel extends Model
     // đếm
     public function MailSystemCount($MyDetail)
     {
-        $system_nick =  $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
-        $stmt = $this->db->prepare('
-            SELECT COUNT(*) as count FROM `mail` WHERE `sender_receiver` = :sender_receiver
-        ');
-        $stmt->bindParam(':sender_receiver', $system_nick, \PDO::PARAM_STR);
-        $stmt->execute();
-        $counts = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $counts['count'];
+        $system_nick = $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
+        return db('mail')->where('sender_receiver', $system_nick)->count();
     }
     // danh sách
     public function MailSystemList($MyDetail, $per, $start)
     {
-        $system_nick =  $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
-        $stmt = $this->db->prepare('
-            SELECT * FROM `mail` WHERE `sender_receiver` = :sender_receiver
-            ORDER BY `time` DESC LIMIT :start, :per
-        ');
-        $stmt->bindParam(':sender_receiver', $system_nick, \PDO::PARAM_STR);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':per', $per, \PDO::PARAM_INT);
-        $stmt->execute();
-        $output = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $output;
+        $system_nick = $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
+        return db('mail')
+            ->where('sender_receiver', $system_nick)
+            ->orderBy('time', 'DESC')
+            ->limit((int)$per)
+            ->offset((int)$start)
+            ->get();
     }
     // đánh dấu tất cả là đã đọc
     public function MailSystemView($MyDetail)
     {
-        $stmt = $this->db->prepare('
-            UPDATE `mail` SET `view` = :yes_view 
-            WHERE `sender_receiver` = :sender_receiver AND view = :no_view
-        ');
-        $stmt->execute([
-            'yes_view' => 'yes',
-            'no_view' => 'no',
-            'sender_receiver' => $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT')
-        ]);
+        $system_nick = $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
+        db('mail')
+            ->where('sender_receiver', $system_nick)
+            ->where('view', 'no')
+            ->update(['view' => 'yes']);
         return null;
     }
     // xóa tất cả
     public function MailSystemClear($MyDetail)
     {
-        $stmt = $this->db->prepare('DELETE FROM `mail` WHERE `sender_receiver` = :sender_receiver');
-        $stmt->execute(['sender_receiver' => $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT')]);
+        $system_nick = $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
+        db('mail')->where('sender_receiver', $system_nick)->delete();
         return null;
     }
 }

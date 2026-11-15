@@ -333,6 +333,15 @@ class Env
 
         $saved = self::set($updates);
 
+        if (defined('SYSTEM')) {
+            $systemPath = SYSTEM . 'configs/autoload/system.php';
+            $content = "<?php\n\nreturn " . var_export($systemConfig, true) . ";\n";
+            @file_put_contents($systemPath, $content, LOCK_EX);
+            if (function_exists('opcache_invalidate')) {
+                @opcache_invalidate($systemPath, true);
+            }
+        }
+
         // Reload Config singleton if already initialized in Container
         if ($saved && class_exists('Container') && class_exists('Config')) {
             try {

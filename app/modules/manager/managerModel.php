@@ -16,91 +16,73 @@ class managerModel extends Model
 {
     public function GetTotalUsers()
     {
-        return $this->db->query("SELECT COUNT(id) FROM users")->fetchColumn();
+        return db('users')->count();
     }
 
     public function GetTotalPosts()
     {
-        return $this->db->query("SELECT COUNT(id) FROM articles_post")->fetchColumn();
+        return db('articles_post')->count();
     }
 
     public function GetTotalCategories()
     {
-        return $this->db->query("SELECT COUNT(id) FROM articles_category")->fetchColumn();
+        return db('articles_category')->count();
     }
 
     public function GetTotalShouts()
     {
-        return $this->db->query("SELECT COUNT(id) FROM chat")->fetchColumn();
+        return db('chat')->count();
     }
     
     // Bắt đầu File Management
     public function GetTotalFiles()
     {
-        return $this->db->query("SELECT COUNT(id) FROM articles_file")->fetchColumn();
+        return db('articles_file')->count();
     }
 
     public function GetFilesList($start, $limit)
     {
-        $start = (int)$start;
-        $limit = (int)$limit;
-        $stmt = $this->db->prepare("
-            SELECT f.*, p.slug as post_slug, u.name as user_name, u.nick as user_nick, u.level as user_level, u.reg as user_reg
-            FROM articles_file f
-            LEFT JOIN articles_post p ON f.blogid = p.id
-            LEFT JOIN users u ON (f.author = u.id OR f.author = u.nick)
-            ORDER BY f.id DESC 
-            LIMIT :start, :limit
-        ");
-        $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
+        return db('articles_file')
+            ->selectRaw('articles_file.*, articles_post.slug AS post_slug, users.name AS user_name, users.nick AS user_nick, users.level AS user_level, users.reg AS user_reg')
+            ->leftJoin('articles_post', 'articles_file.blogid', '=', 'articles_post.id')
+            ->leftJoinRaw('users ON (articles_file.author = users.id OR articles_file.author = users.nick)')
+            ->orderBy('articles_file.id', 'DESC')
+            ->limit((int)$limit)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function DeleteFile($id)
     {
-        $id = (int)$id;
-        $stmt = $this->db->prepare("DELETE FROM articles_file WHERE id = ?");
-        return $stmt->execute([$id]);
+        return db('articles_file')->where('id', (int)$id)->delete() > 0;
     }
     // Kết thúc File Management
     
     public function GetUsers($start, $limit, $search = '', $sort_by = 'id')
     {
-        $start = (int)$start;
-        $limit = (int)$limit;
-        
-        $order_sql = "ORDER BY id DESC";
-        if ($sort_by === 'level') $order_sql = "ORDER BY level DESC, id DESC";
-        elseif ($sort_by === 'status') $order_sql = "ORDER BY level ASC, id DESC"; // Banned users (level < 0) will be at top
-        elseif ($sort_by === 'xu') $order_sql = "ORDER BY xu DESC, id DESC";
+        $query = db('users')->select(['id', 'nick', 'name', 'level', 'xu', 'avatar', 'cover']);
 
         if (!empty($search)) {
-            $stmt = $this->db->prepare("SELECT id, nick, name, level, xu, avatar, cover FROM users WHERE id = :search OR nick LIKE :search_like $order_sql LIMIT :start, :limit");
-            $stmt->bindValue(':search', $search);
-            $stmt->bindValue(':search_like', "%$search%");
-            $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-            $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->fetchAll();
+            $query->where('id', $search)->orWhere('nick', 'LIKE', "%$search%");
         }
-        
-        $stmt = $this->db->prepare("SELECT id, nick, name, level, xu, avatar, cover FROM users $order_sql LIMIT :start, :limit");
-        $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
+
+        if ($sort_by === 'level') {
+            $query->orderBy('level', 'DESC')->orderBy('id', 'DESC');
+        } elseif ($sort_by === 'status') {
+            $query->orderBy('level', 'ASC')->orderBy('id', 'DESC');
+        } elseif ($sort_by === 'xu') {
+            $query->orderBy('xu', 'DESC')->orderBy('id', 'DESC');
+        } else {
+            $query->orderBy('id', 'DESC');
+        }
+
+        return $query->limit((int)$limit)->offset((int)$start)->get();
     }
     
     public function GetTotalUsersSearch($search = '')
     {
         if (!empty($search)) {
-            $stmt = $this->db->prepare("SELECT COUNT(id) FROM users WHERE id = :search OR nick LIKE :search_like");
-            $stmt->bindValue(':search', $search);
-            $stmt->bindValue(':search_like', "%$search%");
-            $stmt->execute();
-            return $stmt->fetchColumn();
+            return db('users')->where('id', $search)->orWhere('nick', 'LIKE', "%$search%")->count();
         }
         return $this->GetTotalUsers();
     }
@@ -113,25 +95,17 @@ class managerModel extends Model
             return false;
         }
 
-        $stmt = $this->db->prepare("SELECT id, level FROM users WHERE id = ?");
-        $stmt->execute([$id]);
-        $user = $stmt->fetch();
+        $user = db('users')->select(['id', 'level'])->where('id', $id)->first();
         if ($user) {
             if ($admin_id > 0) {
-                $stmt_admin = $this->db->prepare("SELECT level FROM users WHERE id = ?");
-                $stmt_admin->execute([$admin_id]);
-                $admin = $stmt_admin->fetch();
+                $admin = db('users')->select(['level'])->where('id', $admin_id)->first();
                 if (!$admin || $user['level'] >= $admin['level']) {
                     return false;
                 }
             }
             $new_level = ($user['level'] >= 0) ? -1 : 0;
-            
-            $stmt = $this->db->prepare("UPDATE users SET level = :level WHERE id = :id");
-            $stmt->execute([
-                ':level' => $new_level,
-                ':id' => $id
-            ]);
+
+            db('users')->where('id', $id)->update(['level' => $new_level]);
             return true;
         }
         return false;
@@ -143,17 +117,13 @@ class managerModel extends Model
         $admin_id = (int)$admin_id;
         
         // Kiểm tra admin
-        $stmt = $this->db->prepare("SELECT id, pass, level FROM users WHERE id = ?");
-        $stmt->execute([$admin_id]);
-        $admin = $stmt->fetch();
+        $admin = db('users')->select(['id', 'pass', 'level'])->where('id', $admin_id)->first();
         if (!$admin || !verify_password_seamless($admin_pass_input, $admin['pass'], $admin['id'], $this->db)) {
             return ['status' => false, 'message' => 'Mật khẩu xác nhận không chính xác.'];
         }
 
         // Kiểm tra user bị reset
-        $stmt = $this->db->prepare("SELECT id, nick, level FROM users WHERE id = ?");
-        $stmt->execute([$target_id]);
-        $target = $stmt->fetch();
+        $target = db('users')->select(['id', 'nick', 'level'])->where('id', $target_id)->first();
         if (!$target) {
             return ['status' => false, 'message' => 'Người dùng không tồn tại.'];
         }
@@ -167,10 +137,10 @@ class managerModel extends Model
         $new_pass_plain = strtolower($target['nick']) . '123000';
         $new_pass_hash = hash_password_secure($new_pass_plain);
 
-        $stmt = $this->db->prepare("UPDATE users SET pass = :pass, failed_logins = 0, lock_time = 0 WHERE id = :id");
-        $stmt->execute([
-            ':pass' => $new_pass_hash,
-            ':id' => $target_id
+        db('users')->where('id', $target_id)->update([
+            'pass'          => $new_pass_hash,
+            'failed_logins' => 0,
+            'lock_time'     => 0,
         ]);
 
         return ['status' => true, 'message' => 'Đã reset mật khẩu thành công về: ' . $new_pass_plain];
@@ -181,13 +151,8 @@ class managerModel extends Model
         $target_id = (int)$target_id;
         $admin_id = (int)$admin_id;
 
-        $stmt_admin = $this->db->prepare("SELECT level FROM users WHERE id = ?");
-        $stmt_admin->execute([$admin_id]);
-        $admin = $stmt_admin->fetch();
-        
-        $stmt_target = $this->db->prepare("SELECT level, nick FROM users WHERE id = ?");
-        $stmt_target->execute([$target_id]);
-        $target = $stmt_target->fetch();
+        $admin = db('users')->select(['level'])->where('id', $admin_id)->first();
+        $target = db('users')->select(['level', 'nick'])->where('id', $target_id)->first();
 
         if (!$admin || !$target) {
             return ['status' => false, 'message' => 'Tài khoản không tồn tại.'];
@@ -209,12 +174,10 @@ class managerModel extends Model
             }
         }
 
-        $stmt = $this->db->prepare("UPDATE users SET name = :name, level = :level, xu = :xu WHERE id = :id");
-        $stmt->execute([
-            ':name' => $data['name'],
-            ':level' => $data['level'],
-            ':xu' => $data['xu'],
-            ':id' => $target_id
+        db('users')->where('id', $target_id)->update([
+            'name'  => $data['name'],
+            'level' => $data['level'],
+            'xu'    => $data['xu'],
         ]);
 
         return ['status' => true, 'message' => 'Đã cập nhật thông tin thành viên ' . $target['nick'] . ' thành công!'];
@@ -223,20 +186,19 @@ class managerModel extends Model
     public function CleanShoutbox()
     {
         // Lấy 50 tin nhắn mới nhất
-        $messages = $this->db->query("SELECT * FROM chat ORDER BY id DESC LIMIT 50")->fetchAll(\PDO::FETCH_ASSOC);
-        $messages = array_reverse($messages); // Đảo ngược để lưu theo đúng thứ tự thời gian
+        $messages = db('chat')->orderBy('id', 'DESC')->limit(50)->get();
+        $messages = array_reverse($messages);
 
-        // Xóa toàn bộ dữ liệu trong bảng chat và reset auto_increment về 1
-        $this->db->query("TRUNCATE TABLE chat");
+        // Xóa toàn bộ dữ liệu trong bảng chat
+        db('chat')->delete();
 
-        // Insert lại 50 tin nhắn với ID mới tự tăng (từ 1 đến tối đa 50)
+        // Insert lại 50 tin nhắn
         if (!empty($messages)) {
-            $stmt = $this->db->prepare("INSERT INTO chat (name, time, comment) VALUES (:name, :time, :comment)");
             foreach ($messages as $msg) {
-                $stmt->execute([
-                    'name' => $msg['name'],
-                    'time' => $msg['time'],
-                    'comment' => $msg['comment']
+                db('chat')->insert([
+                    'name'    => $msg['name'],
+                    'time'    => $msg['time'],
+                    'comment' => $msg['comment'],
                 ]);
             }
         }
@@ -246,32 +208,29 @@ class managerModel extends Model
 
     public function GetArticlesCategories()
     {
-        return $this->db->query("SELECT * FROM articles_category ORDER BY id ASC")->fetchAll();
+        return db('articles_category')->orderBy('id', 'ASC')->get();
     }
 
     public function AddArticlesCategory($data)
     {
-        $stmt = $this->db->prepare("INSERT INTO articles_category (name, slug, content, keyword, meta_data) VALUES (:name, :slug, :content, :keyword, :meta_data)");
-        return $stmt->execute([
+        return db('articles_category')->insert([
             'name' => $data['name'],
             'slug' => $data['slug'],
             'content' => $data['content'],
             'keyword' => $data['keyword'],
             'meta_data' => $data['meta_data'] ?? null
-        ]);
+        ]) > 0;
     }
 
     public function EditArticlesCategory($id, $data)
     {
-        $stmt = $this->db->prepare("UPDATE articles_category SET name = :name, slug = :slug, content = :content, keyword = :keyword, meta_data = :meta_data WHERE id = :id");
-        return $stmt->execute([
+        return db('articles_category')->where('id', $id)->update([
             'name' => $data['name'],
             'slug' => $data['slug'],
             'content' => $data['content'],
             'keyword' => $data['keyword'],
             'meta_data' => $data['meta_data'] ?? null,
-            'id' => $id
-        ]);
+        ]) >= 0;
     }
 
     public function DeleteArticlesCategory($id)
@@ -285,56 +244,36 @@ class managerModel extends Model
 
     public function GetArticlesPosts($start = 0, $limit = 20, $search = '')
     {
-        $start = (int)$start;
-        $limit = (int)$limit;
-        
-        $sql = "SELECT p.id, p.title, p.slug, p.author, p.time, p.view, c.name as category_name 
-                FROM articles_post p 
-                LEFT JOIN articles_category c ON p.category = c.id";
-        
+        $query = db('articles_post')
+            ->selectRaw('articles_post.id, articles_post.title, articles_post.slug, articles_post.author, articles_post.time, articles_post.view, articles_category.name AS category_name')
+            ->leftJoin('articles_category', 'articles_post.category', '=', 'articles_category.id');
+
         if (!empty($search)) {
-            $sql .= " WHERE p.id = :search OR p.title LIKE :search_like";
-            $sql .= " ORDER BY p.id DESC LIMIT :start, :limit";
-            $stmt = $this->db->prepare($sql);
-            $stmt->bindValue(':search', $search);
-            $stmt->bindValue(':search_like', "%$search%");
-            $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-            $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->fetchAll();
+            $query->where('articles_post.id', $search)->orWhere('articles_post.title', 'LIKE', "%$search%");
         }
-        
-        $sql .= " ORDER BY p.id DESC LIMIT :start, :limit";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
+
+        return $query
+            ->orderBy('articles_post.id', 'DESC')
+            ->limit((int)$limit)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function GetTotalArticlesPosts($search = '')
     {
         if (!empty($search)) {
-            $stmt = $this->db->prepare("SELECT COUNT(*) FROM articles_post WHERE id = :search OR title LIKE :search_like");
-            $stmt->bindValue(':search', $search);
-            $stmt->bindValue(':search_like', "%$search%");
-            $stmt->execute();
-            return $stmt->fetchColumn();
+            return db('articles_post')->where('id', $search)->orWhere('title', 'LIKE', "%$search%")->count();
         }
-        return $this->db->query("SELECT COUNT(*) FROM articles_post")->fetchColumn();
+        return db('articles_post')->count();
     }
 
     public function DeleteArticlesPost($id)
     {
         $id = (int)$id;
-        $stmt1 = $this->db->prepare("DELETE FROM articles_post WHERE id = ?");
-        $stmt1->execute([$id]);
-        $stmt2 = $this->db->prepare("DELETE FROM articles_cmt WHERE blogid = ?");
-        $stmt2->execute([$id]);
-        $stmt3 = $this->db->prepare("DELETE FROM articles_chap WHERE box = ?");
-        $stmt3->execute([$id]);
-        $stmt4 = $this->db->prepare("DELETE FROM articles_file WHERE blogid = ?");
-        $stmt4->execute([$id]);
+        db('articles_post')->where('id', $id)->delete();
+        db('articles_cmt')->where('blogid', $id)->delete();
+        db('articles_chap')->where('box', $id)->delete();
+        db('articles_file')->where('blogid', $id)->delete();
 
         require_once __DIR__ . '/../articles/articlesModel.php';
         $articlesModel = new \articlesModel();
@@ -345,50 +284,32 @@ class managerModel extends Model
 
     public function GetArticlesChapters($start = 0, $limit = 20, $search = '')
     {
-        $start = (int)$start;
-        $limit = (int)$limit;
-        
-        $sql = "SELECT c.id, c.title, c.slug, c.author, c.time, c.box, p.title as post_title, p.slug as post_slug 
-                FROM articles_chap c 
-                LEFT JOIN articles_post p ON c.box = p.id";
-        
+        $query = db('articles_chap')
+            ->selectRaw('articles_chap.id, articles_chap.title, articles_chap.slug, articles_chap.author, articles_chap.time, articles_chap.box, articles_post.title AS post_title, articles_post.slug AS post_slug')
+            ->leftJoin('articles_post', 'articles_chap.box', '=', 'articles_post.id');
+
         if (!empty($search)) {
-            $sql .= " WHERE c.id = :search OR c.title LIKE :search_like";
-            $sql .= " ORDER BY c.id DESC LIMIT :start, :limit";
-            $stmt = $this->db->prepare($sql);
-            $stmt->bindValue(':search', $search);
-            $stmt->bindValue(':search_like', "%$search%");
-            $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-            $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-            $stmt->execute();
-            return $stmt->fetchAll();
+            $query->where('articles_chap.id', $search)->orWhere('articles_chap.title', 'LIKE', "%$search%");
         }
-        
-        $sql .= " ORDER BY c.id DESC LIMIT :start, :limit";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':start', (int)$start, \PDO::PARAM_INT);
-        $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll();
+
+        return $query
+            ->orderBy('articles_chap.id', 'DESC')
+            ->limit((int)$limit)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function GetTotalArticlesChapters($search = '')
     {
         if (!empty($search)) {
-            $stmt = $this->db->prepare("SELECT COUNT(*) FROM articles_chap WHERE id = :search OR title LIKE :search_like");
-            $stmt->bindValue(':search', $search);
-            $stmt->bindValue(':search_like', "%$search%");
-            $stmt->execute();
-            return $stmt->fetchColumn();
+            return db('articles_chap')->where('id', $search)->orWhere('title', 'LIKE', "%$search%")->count();
         }
-        return $this->db->query("SELECT COUNT(*) FROM articles_chap")->fetchColumn();
+        return db('articles_chap')->count();
     }
 
     public function DeleteArticlesChapter($id)
     {
-        $id = (int)$id;
-        $stmt1 = $this->db->prepare("DELETE FROM articles_chap WHERE id = ?");
-        $stmt1->execute([$id]);
+        db('articles_chap')->where('id', (int)$id)->delete();
         return true;
     }
 }

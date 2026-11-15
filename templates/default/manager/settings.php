@@ -54,15 +54,16 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Cài đặt Web
             
             <div class="mb-3">
                 <label class="form-label font-weight-bold">Giao thức (Scheme)</label>
+                <?php $currentScheme = (string) Env::get('SITE_SCHEME', 'http://'); ?>
                 <select class="form-control" name="app_scheme">
-                    <option value="http://" <?= ($systemConfig['app']['site']['scheme'] ?? '') === 'http://' ? 'selected' : '' ?>>http://</option>
-                    <option value="https://" <?= ($systemConfig['app']['site']['scheme'] ?? '') === 'https://' ? 'selected' : '' ?>>https://</option>
+                    <option value="http://" <?= $currentScheme === 'http://' ? 'selected' : '' ?>>http://</option>
+                    <option value="https://" <?= $currentScheme === 'https://' ? 'selected' : '' ?>>https://</option>
                 </select>
             </div>
             
             <div class="mb-4">
                 <label class="form-label font-weight-bold">Tên miền (Host)</label>
-                <input type="text" class="form-control" name="app_host" value="<?= $systemConfig['app']['site']['host'] ?? '' ?>" required>
+                <input type="text" class="form-control" name="app_host" value="<?= _e((string) Env::get('SITE_HOST', '')) ?>" required>
             </div>
 
             <?php

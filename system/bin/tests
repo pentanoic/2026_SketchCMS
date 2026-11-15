@@ -1,0 +1,55 @@
+#!/usr/bin/env php
+<?php
+/**
+ * SketchCMS CLI Test Runner
+ * Usage: php system/bin/tests [--filter=QueryBuilder]
+ */
+
+if (PHP_SAPI !== 'cli') {
+    exit("This script must be run from the command line.\n");
+}
+
+$filter = null;
+foreach ($argv as $arg) {
+    if (strpos($arg, '--filter=') === 0) {
+        $filter = substr($arg, 9);
+    }
+}
+
+$root = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
+require $root . 'system' . DIRECTORY_SEPARATOR . 'bootstrap.php';
+require $root . 'tests' . DIRECTORY_SEPARATOR . 'TestRunner.php';
+
+$runner = new TestRunner();
+$testsDir = $root . 'tests';
+
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($testsDir));
+$testFiles = [];
+foreach ($it as $file) {
+    if ($file->isFile() && str_ends_with($file->getFilename(), 'Test.php')) {
+        if ($filter !== null && stripos($file->getPathname(), $filter) === false) {
+            continue;
+        }
+        $testFiles[] = $file->getPathname();
+    }
+}
+
+sort($testFiles);
+echo "=== SketchCMS Test Suite ===\n";
+echo "Found " . count($testFiles) . " test file(s).\n\n";
+
+foreach ($testFiles as $file) {
+    $rel = str_replace($root, '', $file);
+    echo "Running {$rel}...\n";
+    $fn = require $file;
+    if (is_callable($fn)) {
+        try {
+            $fn($runner, $root);
+        } catch (Throwable $e) {
+            $runner->assertTrue(false, "{$rel} threw exception: " . $e->getMessage());
+        }
+    }
+    echo "\n";
+}
+
+exit($runner->summary());

@@ -86,15 +86,13 @@ class userController extends Controller
                         } else {
                             $user = $this->userModel->UserDetailWithFields('nick', $envAdminAccount);
                             if (!$user) {
-                                $pdo = Container::get(DB::class);
-                                $stmtCreate = $pdo->prepare("INSERT INTO users (nick, name, pass, email, level, reg) VALUES (:nick, :name, :pass, :email, :level, :reg)");
-                                $stmtCreate->execute([
-                                    ':nick'  => $envAdminAccount,
-                                    ':name'  => (string) Env::get('MANAGER_ADMIN_NAME', 'Administrator'),
-                                    ':pass'  => hash_password_secure($password),
-                                    ':email' => (string) Env::get('MANAGER_ADMIN_EMAIL', 'admin@sketchcms.test'),
-                                    ':level' => (int) Env::get('MANAGER_ADMIN_LEVEL', 127),
-                                    ':reg'   => TIME,
+                                db('users')->insert([
+                                    'nick'  => $envAdminAccount,
+                                    'name'  => (string) Env::get('MANAGER_ADMIN_NAME', 'Administrator'),
+                                    'pass'  => hash_password_secure($password),
+                                    'email' => (string) Env::get('MANAGER_ADMIN_EMAIL', 'admin@sketchcms.test'),
+                                    'level' => (int) Env::get('MANAGER_ADMIN_LEVEL', 127),
+                                    'reg'   => TIME,
                                 ]);
                                 $user = $this->userModel->UserDetailWithFields('nick', $envAdminAccount);
                             }
@@ -125,10 +123,8 @@ class userController extends Controller
                                     $token = bin2hex(random_bytes(32));
                                     // Hash and save to database
                                     $hashed_token = hash_password_secure($token);
-                                    $stmtRem = $pdo->prepare("UPDATE users SET remember_token = :token WHERE id = :id");
-                                    $stmtRem->execute([
-                                        ':token' => $hashed_token,
-                                        ':id'    => (int)$user['id']
+                                    db('users')->where('id', (int)$user['id'])->update([
+                                        'remember_token' => $hashed_token,
                                     ]);
                                     
                                     $b64Id = base64_encode((string)$user['id']);

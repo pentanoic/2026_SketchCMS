@@ -21,8 +21,7 @@ class mediaModel extends Model
 
     public function insertMedia($data)
     {
-        $stmt = $this->db->prepare("INSERT INTO `articles_file` (`time`, `filename`, `filecate`, `filesize`, `type`, `author`, `status`, `price`, `blogid`) VALUES (:time, :filename, :filecate, :filesize, :type, :author, :status, :price, :blogid)");
-        $stmt->execute([
+        return db('articles_file')->insert([
             'time' => $data['time'],
             'filename' => $data['filename'],
             'filecate' => $data['filecate'],
@@ -33,15 +32,14 @@ class mediaModel extends Model
             'price' => $data['price'],
             'blogid' => isset($data['blogid']) ? (int)$data['blogid'] : 0
         ]);
-        return $this->db->lastInsertId();
     }
 
     public function getLibrary($author, $limit = 50)
     {
-        $stmt = $this->db->prepare("SELECT * FROM `articles_file` WHERE `author` = :author ORDER BY `id` DESC LIMIT :limit");
-        $stmt->bindValue(':author', $author, \PDO::PARAM_STR);
-        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return db('articles_file')
+            ->where('author', $author)
+            ->orderBy('id', 'DESC')
+            ->limit((int)$limit)
+            ->get();
     }
 }

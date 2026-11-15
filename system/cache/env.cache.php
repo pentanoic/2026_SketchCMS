@@ -2,7 +2,7 @@
 return array (
   'APP_DEBUG' => 'true',
   'APP_TIMEZONE' => 'Asia/Ho_Chi_Minh',
-  'DB_CONNECTION' => 'mysql',
+  'DB_CONNECTION' => 'sqlite',
   'DB_HOST' => '127.0.0.1',
   'DB_USER' => 'root',
   'DB_PASS' => '',
@@ -28,8 +28,6 @@ return array (
   'USER_LIST_SORT' => 'asc,desc',
   'MANAGER_ALLOW_COUNTRY' => 'ID,MY,SG,TH,PH,BN,KH,LA,MM,TL,VN',
   'MANAGER_ASSETS' => 'https://cdn.jsdelivr.net/gh/jesuisnk2/someTPL/sneat-free',
-  'URL_RULES_REWRITE' => '{"/faq/terms":{"target":"/home/faq/terms","method":"GET|POST"},"/faq/about":{"target":"/home/faq/about","method":"GET|POST"},"/faq/help":{"target":"/home/faq/help","method":"GET|POST"}}',
-  'URL_RULES_DISABLE' => '/register',
   'SECURITY_RATE_LIMIT' => '2',
   'SMTP_HOST' => 'smtp.gmail.com',
   'SMTP_PORT' => '465',
@@ -45,4 +43,6 @@ return array (
   'APP_NAME' => 'LAB302',
   'APP_DESCRIPTION' => 'từng bước vững vàng, mở lối tương lai',
   'APP_KEYWORD' => 'lab302, huce, nuce, sketchcms',
+  'URL_RULES_REWRITE' => '{"/faq/terms":{"target":"/home/faq/terms","method":"GET|POST"},"/faq/about":{"target":"/home/faq/about","method":"GET|POST"},"/faq/help":{"target":"/home/faq/help","method":"GET|POST"}}',
+  'URL_RULES_DISABLE' => '',
 );

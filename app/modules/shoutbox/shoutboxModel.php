@@ -18,12 +18,7 @@ class shoutboxModel extends Model
     // các chức năng
     public function ChatSend($user, $msg)
     {
-        $stmt = $this->db->prepare('INSERT INTO `chat` SET
-            `name` = :name,
-            `time` = :time,
-            `comment` = :comment
-        ');
-        $stmt->execute([
+        db('chat')->insert([
             'name' => $user['nick'],
             'time' => TIME,
             'comment' => $msg
@@ -40,16 +35,12 @@ class shoutboxModel extends Model
 
             try {
                 if ($module === 'shoutbox') {
-                    $stmt_q = $this->db->prepare('SELECT `name` FROM `chat` WHERE `id` = :id');
-                    $stmt_q->execute(['id' => $quoteId]);
-                    if ($row = $stmt_q->fetch()) {
+                    if ($row = db('chat')->select(['name'])->where('id', $quoteId)->first()) {
                         $quoteAuthorNick = $row['name'];
                         $quoteUrl = '[url=/shoutbox]trò chuyện[/url]';
                     }
                 } elseif ($module === 'articles') {
-                    $stmt_q = $this->db->prepare('SELECT `author`, `blogid` FROM `articles_cmt` WHERE `id` = :id');
-                    $stmt_q->execute(['id' => $quoteId]);
-                    if ($row = $stmt_q->fetch()) {
+                    if ($row = db('articles_cmt')->select(['author', 'blogid'])->where('id', $quoteId)->first()) {
                         $quoteAuthorNick = $row['author'];
                         $quoteUrl = '[url=/articles/' . $row['blogid'] . '.html]bình luận[/url]';
                     }
@@ -61,14 +52,7 @@ class shoutboxModel extends Model
 
                     $bot_name = (string) Env::get('USER_BOT', 'SystemBOT');
 
-                    $stmt_notify = $this->db->prepare('INSERT INTO `mail` SET
-                        `sender_receiver` = :sender_receiver,
-                        `nick` = :nick,
-                        `content` = :content,
-                        `time` = :time,
-                        `view` = :view
-                    ');
-                    $stmt_notify->execute([
+                    db('mail')->insert([
                         'sender_receiver' => $quoteAuthorNick . '_' . $bot_name,
                         'nick' => $user['nick'],
                         'content' => $system_notify_content,
@@ -86,27 +70,15 @@ class shoutboxModel extends Model
     // lấy thông tin
     public function ChatDetail($id)
     {
-        $stmt = $this->db->prepare('SELECT * FROM `chat` WHERE `id` = :id');
-        $stmt->execute(['id' => $id]);
-        $data = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $data ?: null;
+        return db('chat')->where('id', $id)->first();
     }
 
     public function ChatList($start, $limit)
     {
-        // SQL query to fetch chat details if available
-        $sql = '
-            SELECT * FROM chat ORDER BY id desc LIMIT :start, :limit
-        ';
-        $start = abs((int)$start);
-        $limit = abs((int)$limit);
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':limit', $limit, \PDO::PARAM_INT);
-        // Execute the query
-        $stmt->execute();
-        // Fetch all results
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return db('chat')
+            ->orderBy('id', 'DESC')
+            ->limit(abs((int)$limit))
+            ->offset(abs((int)$start))
+            ->get();
     }
 }

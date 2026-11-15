@@ -29,6 +29,22 @@ if (!function_exists('csp_nonce')) {
     }
 }
 
+if (!function_exists('db')) {
+    /**
+     * Get Fluent Database Facade or QueryBuilder for a table
+     *
+     * @param string|null $table
+     * @return QueryBuilder|Database
+     */
+    function db(?string $table = null)
+    {
+        if ($table !== null) {
+            return Database::table($table);
+        }
+        return new Database();
+    }
+}
+
 if (!function_exists('env')) {
     function env(string $key, $default = null)
     {

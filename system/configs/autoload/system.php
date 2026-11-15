@@ -1,22 +1,39 @@
 <?php
 
-/**
- * Software: SketchCMS
- * Author: valedrat
- * Email: kioku17@protonmail.com
- * GitHub: https://github.com/pentanoic/
- * Website: https://lab302.ovh/
- *
- * Copyright (c) 2026 valedrat. All rights reserved.
- *
- * This file is part of the SketchCMS source code.
- * Please do not remove or modify this copyright notice.
- */
-
-return [
-    'app' => [
-        'name' => 'LAB302',
-        'description' => 'từng bước vững vàng, mở lối tương lai',
-        'keyword' => 'lab302, huce, nuce, sketchcms',
-    ],
-];
+return array (
+  'app' => 
+  array (
+    'name' => 'LAB302',
+    'description' => 'từng bước vững vàng, mở lối tương lai',
+    'keyword' => 'lab302, huce, nuce, sketchcms',
+    'site' => 
+    array (
+      'scheme' => 'http://',
+      'host' => 'sketchcms.test',
+    ),
+  ),
+  'url_rules' => 
+  array (
+    'rewrite' => 
+    array (
+      '/faq/terms' => 
+      array (
+        'target' => '/home/faq/terms',
+        'method' => 'GET|POST',
+      ),
+      '/faq/about' => 
+      array (
+        'target' => '/home/faq/about',
+        'method' => 'GET|POST',
+      ),
+      '/faq/help' => 
+      array (
+        'target' => '/home/faq/help',
+        'method' => 'GET|POST',
+      ),
+    ),
+    'disable' => 
+    array (
+    ),
+  ),
+);

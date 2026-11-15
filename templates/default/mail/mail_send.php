@@ -153,8 +153,12 @@ $ReceiverColor = GetRoleColorStr($ReceiverDetail);
                         
                         <div class="text-muted small mt-1 <?= $isMe ? 'text-right' : '' ?>">
                             <i class="fa fa-clock-o"></i> <?= ago($MailDetail['time']) ?>
-                            <?php if ($isMe && $MailDetail['view'] === 'yes'): ?>
-                                <span class="text-success ml-1"><i class="fa fa-check-circle"></i> Đã xem</span>
+                            <?php if ($isMe): ?>
+                                <?php if ($MailDetail['view'] === 'yes'): ?>
+                                    <span class="text-success ml-1"><i class="fa fa-check-circle"></i> Đã xem</span>
+                                <?php else: ?>
+                                    <span class="text-muted ml-1"><i class="fa fa-check"></i> Đã gửi</span>
+                                <?php endif ?>
                             <?php endif ?>
                         </div>
                     </div>

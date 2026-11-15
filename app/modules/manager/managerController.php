@@ -99,7 +99,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -230,7 +230,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -871,7 +871,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -1290,7 +1290,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -1354,7 +1354,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -1456,7 +1456,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -1917,7 +1917,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {
@@ -1976,8 +1976,7 @@ class managerController extends Controller
                 if ($migrated >= $limit) break;
                 if (!$e2e->isEncrypted($mail['content'], $e2eKey, 'mail' . $mail['nick'])) {
                     $encrypted = $e2e->encrypt($mail['content'], $e2eKey, 'mail' . $mail['nick']);
-                    $upd = $pdo->prepare("UPDATE mail SET content = ? WHERE id = ?");
-                    $upd->execute([$encrypted, $mail['id']]);
+                    db('mail')->where('id', $mail['id'])->update(['content' => $encrypted]);
                     $migrated++;
                     $unencrypted_count--;
                 }
@@ -1987,8 +1986,7 @@ class managerController extends Controller
                 if ($migrated >= $limit) break;
                 if (!$e2e->isEncrypted($shout['comment'], $e2eKey, 'shoutbox' . $shout['name'])) {
                     $encrypted = $e2e->encrypt($shout['comment'], $e2eKey, 'shoutbox' . $shout['name']);
-                    $upd = $pdo->prepare("UPDATE chat SET comment = ? WHERE id = ?");
-                    $upd->execute([$encrypted, $shout['id']]);
+                    db('chat')->where('id', $shout['id'])->update(['comment' => $encrypted]);
                     $migrated++;
                     $unencrypted_count--;
                 }
@@ -2020,15 +2018,25 @@ class managerController extends Controller
         if (file_exists($schemaPath)) {
             $schema = json_decode(file_get_contents($schemaPath), true) ?: [];
             
-            $stmt = $pdo->query("SHOW TABLES");
+            $isSqlite = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+            if ($isSqlite) {
+                $stmt = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+            } else {
+                $stmt = $pdo->query("SHOW TABLES");
+            }
             $current_tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
             
             foreach ($schema as $tb => $data) {
                 if (!in_array($tb, $current_tables)) {
                     $missing_tables[] = $tb;
                 } else {
-                    $stmt = $pdo->query("SHOW COLUMNS FROM `$tb`");
-                    $current_cols = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    if ($isSqlite) {
+                        $stmt = $pdo->query('PRAGMA table_info("' . str_replace('"', '""', $tb) . '")');
+                        $current_cols = $stmt->fetchAll(PDO::FETCH_COLUMN, 1);
+                    } else {
+                        $stmt = $pdo->query("SHOW COLUMNS FROM `$tb`");
+                        $current_cols = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                    }
                     
                     $miss = [];
                     foreach ($data['columns'] as $col => $type) {
@@ -2066,6 +2074,68 @@ class managerController extends Controller
                 redirect(url('/manager/security'));
                 return;
             }
+        }
+
+        if ($this->request->getMethod() === 'POST' && isset($_POST['reset_db_data'])) {
+            if (!$this->verifyAdminAction('security', 'manager_security_error', '/manager/security')) return;
+
+            $confirmModule = trim((string) ($_POST['confirm_module'] ?? ''));
+            if ($confirmModule !== 'security') {
+                setcookie('manager_security_error', 'Tên module xác nhận không đúng (phải nhập: security).', time() + 5, '/');
+                redirect(url('/manager/security'));
+                return;
+            }
+
+            try {
+                $isSqlite = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+                if ($isSqlite) {
+                    $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")->fetchAll(PDO::FETCH_COLUMN);
+                } else {
+                    $tables = $pdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
+                }
+
+                foreach ($tables as $tb) {
+                    if ($tb === 'users') {
+                        continue;
+                    }
+                    if ($isSqlite) {
+                        $pdo->exec('DELETE FROM "' . str_replace('"', '""', $tb) . '"');
+                        $pdo->exec("DELETE FROM sqlite_sequence WHERE name = " . $pdo->quote($tb));
+                    } else {
+                        $pdo->exec("TRUNCATE TABLE `$tb`");
+                    }
+                }
+
+                // Khởi tạo lại dữ liệu mẫu ban đầu (tham khảo install/index.php)
+                if (in_array('articles_category', $tables, true)) {
+                    db('articles_category')->insert([
+                        'id'      => 1,
+                        'name'    => 'Tin tức - Sự kiện',
+                        'slug'    => 'tin-tuc-su-kien',
+                        'content' => 'Chuyên mục tin tức',
+                        'keyword' => 'tin tức, sự kiện',
+                    ]);
+                }
+                if (in_array('articles_post', $tables, true)) {
+                    $authorNick = (string) ($this->request->user()->user['nick'] ?? Env::get('MANAGER_ADMIN_ACCOUNT', 'admin'));
+                    db('articles_post')->insert([
+                        'id'          => 1,
+                        'title'       => 'Chào mừng đến với SketchCMS',
+                        'slug'        => 'chao-mung-den-voi-sketchcms',
+                        'content'     => 'Hệ thống đã được khởi tạo lại dữ liệu ban đầu thành công.',
+                        'time'        => TIME,
+                        'update_time' => TIME,
+                        'category'    => 1,
+                        'author'      => $authorNick,
+                    ]);
+                }
+
+                setcookie('manager_security_success', 'Đã khởi tạo lại dữ liệu ban đầu (giữ nguyên toàn bộ users) trên CSDL đang chọn!', time() + 5, '/');
+            } catch (PDOException $e) {
+                setcookie('manager_security_error', 'Lỗi khởi tạo lại dữ liệu: ' . $e->getMessage(), time() + 5, '/');
+            }
+            redirect(url('/manager/security'));
+            return;
         }
         
         return view('manager/security', [
@@ -2131,7 +2201,7 @@ class managerController extends Controller
                     if ($oldConnection !== $dbConnection) {
                         DB::syncDatabaseIfEmpty($oldConnection, $dbConnection);
                     }
-                    Env::set('DB_CONNECTION', $dbConnection);
+                    Env::set(['DB_CONNECTION' => $dbConnection]);
                     $envCache = SYSTEM . 'cache' . DS . 'env.cache.php';
                     if (is_file($envCache)) {
                         if (function_exists('opcache_invalidate')) {

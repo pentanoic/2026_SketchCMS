@@ -114,7 +114,7 @@ class Auth
 
                     $this->db->prepare('UPDATE `users` SET
                         `on`   = ?
-                        WHERE `id` = ? LIMIT 1
+                        WHERE `id` = ?
                     ')->execute([TIME, $user['id']]);
                     // kiểm tra xem user_id có trong bảng `users_waifu` chưa, nếu chưa thì insert vào
                     $stmtWaifu = $this->db->prepare('

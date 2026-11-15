@@ -26,17 +26,12 @@ class userModel extends Model
     public function UserStats($nick)
     {
         $nick = mb_strtolower($nick);
-        $stmt = $this->db->prepare('
-            SELECT
-                (SELECT COUNT(*) FROM articles_post WHERE author = :nick) AS count_post,
-                (SELECT COUNT(*) FROM articles_chap WHERE author = :nick) AS count_chapter,
-                (SELECT COUNT(*) FROM articles_cmt WHERE author = :nick) AS count_comment,
-                (SELECT COUNT(*) FROM articles_file WHERE author = :nick) AS count_file
-        ');
-        $stmt->bindParam(':nick', $nick, \PDO::PARAM_STR);
-        $stmt->execute();
-        $counts = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $counts;
+        return [
+            'count_post' => db('articles_post')->where('author', $nick)->count(),
+            'count_chapter' => db('articles_chap')->where('author', $nick)->count(),
+            'count_comment' => db('articles_cmt')->where('author', $nick)->count(),
+            'count_file' => db('articles_file')->where('author', $nick)->count(),
+        ];
     }
 
     public function isLoginredirect($request)
@@ -58,8 +53,7 @@ class userModel extends Model
     public function logout()
     {
         if (isset($_SESSION['uid'])) {
-            $stmt = $this->db->prepare("UPDATE users SET remember_token = NULL WHERE id = ?");
-            $stmt->execute([intval($_SESSION['uid'])]);
+            db('users')->where('id', intval($_SESSION['uid']))->update(['remember_token' => null]);
         }
         $cookiePath = '/' . ltrim((string) Env::get('SITE_PATH', ''), '/');
         $cookieOpts = [
@@ -80,59 +74,51 @@ class userModel extends Model
         if (!in_array($type, ['id', 'nick', 'email'], true)) {
             $type = 'nick';
         }
-        $stmt = $this->db->prepare('SELECT `id`, `nick`, `email`, `pass`, `level`, `failed_logins`, `lock_time` FROM `users` WHERE `' . $type . '` = ? LIMIT 1');
-        $stmt->execute([$email]);
-        return $stmt->fetch();
+        return db('users')
+            ->select(['id', 'nick', 'email', 'pass', 'level', 'failed_logins', 'lock_time'])
+            ->where($type, $email)
+            ->first();
     }
 
     public function recordLoginFailure(array $user): int
     {
         $failed = ((int)($user['failed_logins'] ?? 0)) + 1;
         $lock = ($failed >= 5) ? (time() + 15 * 60) : 0;
-        $stmt = $this->db->prepare('UPDATE `users` SET `failed_logins` = :failed, `lock_time` = :lock WHERE `id` = :id');
-        $stmt->execute([
-            ':failed' => $failed,
-            ':lock'   => $lock,
-            ':id'     => (int)$user['id']
+        db('users')->where('id', (int)$user['id'])->update([
+            'failed_logins' => $failed,
+            'lock_time'     => $lock,
         ]);
         return $lock;
     }
 
     public function resetLoginFailures(int $userId): void
     {
-        $stmt = $this->db->prepare('UPDATE `users` SET `failed_logins` = 0, `lock_time` = 0 WHERE `id` = :id');
-        $stmt->execute([':id' => $userId]);
+        db('users')->where('id', $userId)->update([
+            'failed_logins' => 0,
+            'lock_time'     => 0,
+        ]);
     }
 
     // check if account or email is exists for register
     public function checkUsedInfo($account, $email)
     {
-        $stmt = $this->db->prepare('SELECT `nick`, `email` FROM `users` WHERE nick = :account OR `email` = :email LIMIT 1');
-        $stmt->execute(['account' => $account, 'email' => $email]);
-        $data = $stmt->fetch();
-
-        return $data;
+        return db('users')
+            ->select(['nick', 'email'])
+            ->where('nick', $account)
+            ->orWhere('email', $email)
+            ->first();
     }
 
     // register
     public function register($user)
     {
-        $stmt = $this->db->prepare('INSERT INTO `users` SET
-            `nick` = :nick,
-            `name` = :name,
-            `pass` = :pass,
-            `sex` = :sex,
-            `reg` = :reg
-        ');
-        $stmt->execute([
+        return db('users')->insert([
             'nick' => $user['nick'],
             'name' => $user['nick'],
             'pass' => hash_password_secure($user['pass']),
-            'sex' => $user['sex'],
-            'reg' => TIME
+            'sex'  => $user['sex'],
+            'reg'  => TIME,
         ]);
-
-        return $this->db->lastInsertId();
     }
 
     public function UserDetailWithFields($fields = 'nick', $value = 'bot')
@@ -147,10 +133,11 @@ class userModel extends Model
 
     public function UpdateIfNotMD5($limit = 100)
     {
-        $select = $this->db->prepare('SELECT id, pass FROM users WHERE LENGTH(pass) < 15 LIMIT :limit');
-        $select->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
-        $select->execute();
-        $data = $select->fetchAll();
+        $data = db('users')
+            ->select(['id', 'pass'])
+            ->whereRaw('LENGTH(pass) < 15')
+            ->limit((int)$limit)
+            ->get();
 
         if (empty($data)) {
             return 0;
@@ -158,11 +145,7 @@ class userModel extends Model
 
         $count = 0;
         foreach ($data as $user) {
-            $pass = md5($user['pass']);
-            $update = $this->db->prepare('UPDATE users SET pass = :pass WHERE id = :id');
-            $update->bindParam(':pass', $pass, \PDO::PARAM_STR);
-            $update->bindParam(':id', $user['id'], \PDO::PARAM_INT);
-            $update->execute();
+            db('users')->where('id', $user['id'])->update(['pass' => md5($user['pass'])]);
             $count++;
         }
         return $count;
@@ -190,37 +173,23 @@ class userModel extends Model
         }
 
         // SQL query để lấy danh sách người dùng theo thứ tự
-        $sql = 'SELECT users.*, ' . $order_by_sql . ' AS order_value FROM users WHERE level >= 0 ORDER BY order_value ' . $sort . ' LIMIT :start, :per';
-
-        // Chuẩn bị câu lệnh SQL
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':per', $per, \PDO::PARAM_INT);
-
-        // Thực thi câu lệnh
-        $stmt->execute();
-
-        // Lấy tất cả kết quả
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return db('users')
+            ->selectRaw('users.*, ' . $order_by_sql . ' AS order_value')
+            ->where('level', '>=', 0)
+            ->orderBy('order_value', $sort)
+            ->limit((int)$per)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function UserListOnline($start = 0, $end = 0)
     {
         $onlimit = date('U') - 300;
-        $sql = 'SELECT * FROM users WHERE `on` > :onlimit';
+        $query = db('users')->where('on', '>', $onlimit);
         if ($end > 0) {
-            $sql .= ' LIMIT :start, :end';
+            $query->limit((int)$end)->offset((int)$start);
         }
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':onlimit', $onlimit, \PDO::PARAM_INT);
-        if ($end > 0) {
-            $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-            $stmt->bindParam(':end', $end, \PDO::PARAM_INT);
-        }
-        $stmt->execute();
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return $query->get();
     }
 
     public function UserOnlineStatus($UserDetail)
@@ -238,31 +207,16 @@ class userModel extends Model
         if (!in_array($table, ['users', 'users_waifu'], true)) {
             $table = 'users';
         }
-        $sql = "UPDATE `$table` SET ";
-        $setParts = [];
-        $bindValues = [];
+        $cleanData = [];
         foreach ($SaveData as $key => $value) {
-            if (!preg_match('/^[a-zA-Z0-9_]+$/', (string)$key)) {
-                continue;
+            if (preg_match('/^[a-zA-Z0-9_]+$/', (string)$key)) {
+                $cleanData[$key] = $value;
             }
-            $setParts[] = "`$key` = :$key";
-            $bindValues[":$key"] = $value;
         }
-        if (empty($setParts)) {
+        if (empty($cleanData)) {
             return 0;
         }
-        $sql .= implode(', ', $setParts);
-        $sql .= ' WHERE id = :id';
-
-        $stmt = $this->db->prepare($sql);
-        $bindValues[':id'] = $MyDetail['id'];
-
-        foreach ($bindValues as $param => $val) {
-            $stmt->bindValue($param, $val);
-        }
-
-        $stmt->execute();
-        return $stmt->rowCount();
+        return db($table)->where('id', $MyDetail['id'])->update($cleanData);
     }
 
     public function UserDetailBlockList($UserDetail)
@@ -287,34 +241,30 @@ class userModel extends Model
     public function SetResetToken($email, $token, $expires)
     {
         $hashedToken = hash_identifier((string)$token);
-        $stmt = $this->db->prepare('UPDATE users SET reset_token = :token, reset_expires = :expires WHERE email = :email');
-        $stmt->execute([
-            'token' => $hashedToken,
-            'expires' => $expires,
-            'email' => $email
-        ]);
-        return $stmt->rowCount() > 0;
+        return db('users')->where('email', $email)->update([
+            'reset_token'   => $hashedToken,
+            'reset_expires' => $expires,
+        ]) > 0;
     }
 
     public function CheckResetToken($token)
     {
         $hashedToken = hash_identifier((string)$token);
-        $stmt = $this->db->prepare('SELECT * FROM users WHERE reset_token = :token AND reset_expires > :time LIMIT 1');
-        $stmt->execute([
-            'token' => $hashedToken,
-            'time' => time()
-        ]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+        return db('users')
+            ->where('reset_token', $hashedToken)
+            ->where('reset_expires', '>', time())
+            ->first();
     }
 
     public function ResetPasswordByToken($token, $new_password)
     {
         $hashedToken = hash_identifier((string)$token);
-        $stmt = $this->db->prepare('UPDATE users SET pass = :pass, reset_token = NULL, reset_expires = NULL, failed_logins = 0, lock_time = 0 WHERE reset_token = :token');
-        $stmt->execute([
-            'pass' => $new_password,
-            'token' => $hashedToken
-        ]);
-        return $stmt->rowCount() > 0;
+        return db('users')->where('reset_token', $hashedToken)->update([
+            'pass'          => $new_password,
+            'reset_token'   => null,
+            'reset_expires' => null,
+            'failed_logins' => 0,
+            'lock_time'     => 0,
+        ]) > 0;
     }
 }

@@ -36,6 +36,22 @@ function autoload($name) {
             $file = SYSTEM . 'services' . DS . $name . '.php';
         }
     }
+    // Autoload cho Database Driver & Fluent Core
+    elseif ($name === 'DriverInterface' || preg_match('/^([a-z]+)Driver$/i', $name)) {
+        $file = SYSTEM . 'drive' . DS . 'Driver' . DS . $name . '.php';
+    }
+    elseif ($name === 'QueryBuilder') {
+        $file = SYSTEM . 'drive' . DS . 'Query' . DS . 'Builder.php';
+    }
+    elseif ($name === 'Raw') {
+        $file = SYSTEM . 'drive' . DS . 'Query' . DS . 'Raw.php';
+    }
+    elseif ($name === 'Database') {
+        $file = SYSTEM . 'drive' . DS . 'Core' . DS . 'Database.php';
+    }
+    elseif ($name === 'BaseRepository') {
+        $file = SYSTEM . 'drive' . DS . 'Repository' . DS . 'BaseRepository.php';
+    }
     // Autoload cho Interface và Middleware
     elseif (preg_match('/^([a-z]+)(Interface|Middleware)$/i', $name)) {
         $file = APP . 'interfaces' . DS . $name . '.php';

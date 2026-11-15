@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SketchCMS - Browser E2E Runner (Session Hiện Tại)</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }
+        .container { max-width: 1024px; margin: 0 auto; }
+        h1 { margin: 0 0 8px; font-size: 22px; color: #38bdf8; }
+        p.sub { margin: 0 0 20px; color: #94a3b8; font-size: 14px; }
+        .controls { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+        input { background: #1e293b; border: 1px solid #334155; color: #f8fafc; padding: 8px 12px; border-radius: 6px; width: 260px; }
+        button { background: #0284c7; color: #fff; border: none; padding: 9px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        button:hover { background: #0369a1; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .summary { background: #1e293b; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; display: flex; gap: 20px; font-size: 14px; flex-wrap: wrap; }
+        .pass { color: #4ade80; font-weight: 600; }
+        .fail { color: #f87171; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; font-size: 13px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #334155; }
+        th { background: #0f172a; color: #94a3b8; font-weight: 600; }
+        a { color: #38bdf8; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>SketchCMS Browser E2E Runner (Session Hiện Tại)</h1>
+    <p class="sub">Sử dụng trực tiếp cookie session đang đăng nhập trên trình duyệt, lấy nguồn bài viết từ <code>_antigravity/data-test/articles.json</code>, thực thi GET/POST và giữ nguyên dữ liệu để kiểm chứng.</p>
+
+    <div class="controls">
+        <input type="text" id="baseUrl" value="http://sketchcms.test" placeholder="Base URL">
+        <button id="runBtn" onclick="runAll()">Chạy toàn bộ kiểm tra</button>
+    </div>
+
+    <div class="summary">
+        <div>Tổng: <strong id="totalCount">0</strong></div>
+        <div class="pass">Thành công: <span id="passCount">0</span></div>
+        <div class="fail">Thất bại: <span id="failCount">0</span></div>
+        <div id="sessionStatus" style="color:#fbbf24;">Đang chờ chạy...</div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Chức năng</th>
+                <th>Method</th>
+                <th>Route</th>
+                <th>HTTP</th>
+                <th>Kết quả</th>
+            </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+    </table>
+</div>
+
+<script>
+const errorPatterns = ['Fatal error', 'Uncaught ', 'SQLSTATE[', 'Parse error', 'Warning:', 'Notice:'];
+let pass = 0, fail = 0, step = 0;
+
+async function submitFormFromHtml(baseUrl, path, overrides = {}) {
+    const page = await req(baseUrl, path, 'GET');
+    if (page.status >= 400) {
+        return { status: page.status, ok: false, note: 'Route không tồn tại hoặc lỗi HTTP ' + page.status, url: page.url };
+    }
+    const doc = new DOMParser().parseFromString(page.text, 'text/html');
+    const form = doc.querySelector('form[method="post" i]') || doc.querySelector('form');
+    if (!form) {
+        return { status: page.status, ok: false, note: 'Không tìm thấy form trên trang', url: page.url };
+    }
+    const fd = new FormData(form);
+    for (const [k, v] of Object.entries(overrides)) {
+        if (form.querySelector(`[name="${k}"]`)) {
+            fd.set(k, v);
+        }
+    }
+    // Tự động điền nếu tên field khác (vd: textarea đầu tiên cho content/msg, input[type=text] đầu tiên cho title)
+    if (overrides.title && !form.querySelector('[name="title"]')) {
+        const textInput = form.querySelector('input[type="text"]:not([name*="csrf"]):not([name*="token"])');
+        if (textInput && textInput.name) fd.set(textInput.name, overrides.title);
+    }
+    const bodyText = overrides.content || overrides.msg || overrides.message;
+    if (bodyText) {
+        const ta = form.querySelector('textarea');
+        if (ta && ta.name && !fd.get(ta.name)) fd.set(ta.name, bodyText);
+    }
+    const submitBtn = form.querySelector('button[type="submit"][name], input[type="submit"][name]');
+    if (submitBtn && submitBtn.name) {
+        fd.set(submitBtn.name, submitBtn.value || '1');
+    }
+    const action = form.getAttribute('action') || path;
+    const targetUrl = action.startsWith('http') ? action : baseUrl + (action.startsWith('/') ? action : '/' + action);
+    const res = await fetch(targetUrl, {
+        method: 'POST',
+        credentials: 'include',
+        body: new URLSearchParams(fd),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+    const text = await res.text();
+    const finalUrl = res.url || targetUrl;
+    const isSelf = finalUrl.includes('run-nomal.php');
+    const matchedErr = isSelf ? null : errorPatterns.find(p => text.toLowerCase().includes(p.toLowerCase()));
+    let note = matchedErr || '';
+    if (matchedErr) {
+        const m = text.match(/(?:Fatal error|Uncaught|SQLSTATE)[^<\n]{0,180}/i);
+        if (m) note = m[0];
+    }
+    return { status: res.status, ok: res.status < 500 && !matchedErr, note, url: finalUrl };
+}
+
+function addLog(name, method, url, status, ok, note) {
+    step++;
+    if (ok) pass++; else fail++;
+    document.getElementById('totalCount').textContent = step;
+    document.getElementById('passCount').textContent = pass;
+    document.getElementById('failCount').textContent = fail;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td>${step}</td>
+        <td>${name}</td>
+        <td><code>${method}</code></td>
+        <td><a href="${url}" target="_blank">${url}</a></td>
+        <td>${status}</td>
+        <td class="${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'} ${note ? '(' + note + ')' : ''}</td>
+    `;
+    document.getElementById('logBody').appendChild(tr);
+}
+
+async function req(baseUrl, path, method = 'GET', formData = null) {
+    const url = baseUrl + path;
+    const opts = { method, credentials: 'include' };
+    if (method === 'POST' && formData) {
+        opts.body = new URLSearchParams(formData);
+        opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+    }
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    const matchedErr = errorPatterns.find(p => text.toLowerCase().includes(p.toLowerCase()));
+    const ok = res.status < 500 && !matchedErr;
+    return { status: res.status, text, ok, note: matchedErr || '', url: res.url || url };
+}
+
+async function runAll() {
+    const btn = document.getElementById('runBtn');
+    btn.disabled = true;
+    pass = 0; fail = 0; step = 0;
+    document.getElementById('logBody').innerHTML = '';
+    document.getElementById('sessionStatus').textContent = 'Đang kiểm tra bằng session hiện tại...';
+
+    const baseUrl = document.getElementById('baseUrl').value.replace(/\/+$/, '');
+
+    // 1. Kiểm tra hàng loạt GET routes
+    const gets = [
+        ['Trang chủ', '/'],
+        ['Danh sách bài viết', '/articles'],
+        ['Form đăng bài viết', '/articles/post'],
+        ['Phòng chat (Shoutbox)', '/shoutbox'],
+        ['Thành viên', '/user'],
+        ['Hộp thư', '/mail'],
+        ['Quản trị (Manager)', '/manager'],
+        ['Quản trị - Bảo mật', '/manager/security'],
+        ['Quản trị - Modules', '/manager/modules'],
+        ['Quản trị - Thành viên', '/manager/users'],
+        ['Quản trị - Bài viết', '/manager/articles'],
+    ];
+
+    for (const [label, path] of gets) {
+        const r = await req(baseUrl, path, 'GET');
+        addLog(label, 'GET', r.url, r.status, r.ok, r.note);
+    }
+
+    // 2. Đọc nguồn bài viết từ _antigravity/data-test/articles.json và POST đăng bài bằng FormData thật
+    try {
+        const dataRes = await fetch(baseUrl + '/run-nomal.php?data=articles', { credentials: 'include' });
+        const articles = await dataRes.json();
+        for (let i = 0; i < articles.length; i++) {
+            const art = articles[i];
+            const postRes = await submitFormFromHtml(baseUrl, '/articles/post', {
+                title: art.title + ' [' + new Date().toLocaleTimeString() + ']',
+                category: String(art.category || 1),
+                content: art.content,
+                tags: art.tags || '',
+            });
+            addLog(`Đăng bài viết mẫu #${i + 1}`, 'POST', postRes.url, postRes.status, postRes.ok, postRes.note);
+        }
+    } catch (e) {
+        addLog('Đọc nguồn _antigravity/data-test/articles.json', 'GET', baseUrl + '/run-nomal.php?data=articles', 0, false, e.message);
+    }
+
+    // 3. Gửi tin nhắn Shoutbox bằng FormData thật
+    const sbRes = await submitFormFromHtml(baseUrl, '/shoutbox', {
+        msg: 'E2E Test (Session hiện tại) ' + new Date().toLocaleTimeString(),
+        message: 'E2E Test (Session hiện tại) ' + new Date().toLocaleTimeString(),
+    });
+    addLog('Gửi tin nhắn Shoutbox', 'POST', sbRes.url, sbRes.status, sbRes.ok, sbRes.note);
+
+    // 4. Bình luận vào bài viết đầu tiên tìm thấy trên /articles
+    const artListPage = await req(baseUrl, '/articles', 'GET');
+    const artDoc = new DOMParser().parseFromString(artListPage.text, 'text/html');
+    const firstPostLink = artDoc.querySelector('a[href*="/articles/"][href$=".html"]');
+    if (firstPostLink) {
+        const postPath = new URL(firstPostLink.href, baseUrl).pathname;
+        const cmtRes = await submitFormFromHtml(baseUrl, postPath, {
+            comment: 'Bình luận kiểm thử E2E lúc ' + new Date().toLocaleTimeString(),
+            content: 'Bình luận kiểm thử E2E lúc ' + new Date().toLocaleTimeString(),
+        });
+        addLog('Gửi bình luận bài viết', 'POST', cmtRes.url, cmtRes.status, cmtRes.ok, cmtRes.note);
+    } else {
+        addLog('Gửi bình luận bài viết', 'POST', baseUrl + '/articles', 0, false, 'Chưa có bài viết nào để bình luận');
+    }
+
+    // 5. Gửi tin nhắn nội bộ tới tester (tránh tự gửi cho chính mình nếu đang đăng nhập admin)
+    let receiver = 'tester';
+    const mailRes = await submitFormFromHtml(baseUrl, '/mail/send/' + receiver, {
+        content: 'Tin nhắn kiểm thử E2E lúc ' + new Date().toLocaleTimeString(),
+        msg: 'Tin nhắn kiểm thử E2E lúc ' + new Date().toLocaleTimeString(),
+    });
+    addLog(`Gửi thư nội bộ (${receiver})`, 'POST', mailRes.url, mailRes.status, mailRes.ok, mailRes.note);
+
+    document.getElementById('sessionStatus').textContent = 'Hoàn tất! Dữ liệu đã được giữ lại trong DB để bạn kiểm chứng.';
+    btn.disabled = false;
+}
+</script>
+</body>
+</html>

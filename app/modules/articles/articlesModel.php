@@ -45,14 +45,8 @@ class articlesModel extends Model
 
     public function CountTotalPostsAndComments($authorId)
     {
-        $stmt1 = $this->db->prepare("SELECT COUNT(*) FROM $this->PostTable WHERE author = :author");
-        $stmt1->execute(['author' => $authorId]);
-        $posts = $stmt1->fetchColumn();
-
-        $stmt2 = $this->db->prepare("SELECT COUNT(*) FROM $this->CommentTable WHERE author = :author");
-        $stmt2->execute(['author' => $authorId]);
-        $comments = $stmt2->fetchColumn();
-
+        $posts = db($this->PostTable)->where('author', $authorId)->count();
+        $comments = db($this->CommentTable)->where('author', $authorId)->count();
         return $posts + $comments;
     }
 
@@ -66,26 +60,29 @@ class articlesModel extends Model
          * nếu dữ liệu thuộc bảng chap:
          * ** ['url' => '/view-chap/id-slug.html, 'title', 'author', 'time']
          */
-        $blogQuery = "
-            SELECT '$this->PostTable' AS source, id, title, author, time, CONCAT('/articles/', id, '-', slug, '.html') AS url
-            FROM $this->PostTable
-            WHERE title LIKE :query
-        ";
-        $chapQuery = "
-            SELECT '$this->ChapterTable' AS source, id, title, author, time, CONCAT('/view-chap/', id, '-', slug, '.html') AS url
-            FROM $this->ChapterTable
-            WHERE title LIKE :query
-        ";
-        $combinedQuery = "
-            ($blogQuery)
-            UNION ALL
-            ($chapQuery)
-            ORDER BY time DESC
-        ";
+        $like = '%' . $query . '%';
+        $posts = db($this->PostTable)
+            ->select(['id', 'title', 'author', 'time', 'slug'])
+            ->where('title', 'LIKE', $like)
+            ->get();
+        foreach ($posts as &$p) {
+            $p['source'] = $this->PostTable;
+            $p['url'] = '/articles/' . $p['id'] . '-' . $p['slug'] . '.html';
+        }
+        unset($p);
 
-        $stmt = $this->db->prepare($combinedQuery);
-        $stmt->execute(['query' => '%' . $query . '%']);
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $chaps = db($this->ChapterTable)
+            ->select(['id', 'title', 'author', 'time', 'slug'])
+            ->where('title', 'LIKE', $like)
+            ->get();
+        foreach ($chaps as &$c) {
+            $c['source'] = $this->ChapterTable;
+            $c['url'] = '/view-chap/' . $c['id'] . '-' . $c['slug'] . '.html';
+        }
+        unset($c);
+
+        $results = array_merge($posts, $chaps);
+        usort($results, static fn($a, $b) => ((int) ($b['time'] ?? 0)) <=> ((int) ($a['time'] ?? 0)));
 
         return [
             'count' => count($results),
@@ -107,10 +104,7 @@ class articlesModel extends Model
             return null;
         }
 
-        $stmt = $this->db->prepare("SELECT * FROM `$table` WHERE `$fields` = :value LIMIT 1");
-        $stmt->execute(['value' => $value]);
-        $output = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $output ?: null;
+        return db($table)->where($fields, $value)->first();
     }
 
     public function ForumCheckExists($table = null, $fields = null, $value = null)
@@ -127,16 +121,7 @@ class articlesModel extends Model
             return false;
         }
 
-        $stmt = $this->db->prepare("
-            SELECT EXISTS(
-                SELECT 1 FROM `$table` WHERE `$fields` = :value
-            ) AS exists_flag
-        ");
-        $paramType = is_int($value) ? \PDO::PARAM_INT : \PDO::PARAM_STR;
-        $stmt->bindValue(':value', $value, $paramType);
-        $stmt->execute();
-        $exists = $stmt->fetchColumn(); // lấy giá trị exists_flag (0 hoặc 1)
-        return (bool) $exists;
+        return db($table)->where($fields, $value)->exists();
     }
 
     public function ForumStats($table = null, $id = null)
@@ -151,42 +136,28 @@ class articlesModel extends Model
                 'count_file_in_post'
             ])
         ) { // thống kê cục bộ
-            # Đếm số hàng trong các bảng
-            $stmtCount = $this->db->prepare("
-                SELECT
-                    (SELECT COUNT(*) FROM $this->CategoryTable WHERE slug != 'news') AS count_category,
-                    (SELECT COUNT(*) FROM $this->PostTable) AS count_post,
-                    (SELECT COUNT(*) FROM $this->ChapterTable) AS count_chapter,
-                    (SELECT COUNT(*) FROM $this->CommentTable) AS count_comment,
-                    (SELECT COUNT(*) FROM $this->FileTable) AS count_file,
-                    (SELECT COUNT(*) FROM users WHERE level >= 0) AS count_user,
-                    (SELECT COUNT(*) FROM chat) AS count_chat,
-                    (SELECT COUNT(*) FROM users WHERE `on` > :onlimit) AS count_online
-            ");
-            $stmtCount->execute(['onlimit' => (date('U') - 300)]);
-            $counts = $stmtCount->fetch(\PDO::FETCH_ASSOC);
-            # Lấy dữ liệu hàng cuối cùng từ bảng users
-            $stmtLatestUser = $this->db->prepare('SELECT * FROM users WHERE level >= 0 ORDER BY id DESC LIMIT 1');
-            $stmtLatestUser->execute();
-            $latestUser = $stmtLatestUser->fetch(\PDO::FETCH_ASSOC);
-            # Kết hợp kết quả vào một mảng duy nhất$
+            $counts = [
+                'count_category' => db($this->CategoryTable)->where('slug', '!=', 'news')->count(),
+                'count_post'     => db($this->PostTable)->count(),
+                'count_chapter'  => db($this->ChapterTable)->count(),
+                'count_comment'  => db($this->CommentTable)->count(),
+                'count_file'     => db($this->FileTable)->count(),
+                'count_user'     => db('users')->where('level', '>=', 0)->count(),
+                'count_chat'     => db('chat')->count(),
+                'count_online'   => db('users')->where('on', '>', date('U') - 300)->count(),
+            ];
+            $latestUser = db('users')->where('level', '>=', 0)->orderBy('id', 'DESC')->first();
             $stats = array_merge($counts, ['latest_user' => $latestUser]);
         } else { // đếm bài viết trong category, đếm comment và chaptet trong bài viết
             if ($table === 'count_post_in_category') {
-                $sql = "SELECT COUNT(*) AS count FROM $this->PostTable WHERE `category` = :id";
+                $stats = db($this->PostTable)->where('category', (int)$id)->count();
             } elseif ($table === 'count_comment_in_post') {
-                $sql = "SELECT COUNT(*) AS count FROM $this->CommentTable WHERE `blogid` = :id";
+                $stats = db($this->CommentTable)->where('blogid', (int)$id)->count();
             } elseif ($table === 'count_file_in_post') {
-                $sql = "SELECT COUNT(*) AS count FROM $this->FileTable WHERE `blogid` = :id";
+                $stats = db($this->FileTable)->where('blogid', (int)$id)->count();
             } else {
-                $sql = "SELECT COUNT(*) AS count FROM $this->ChapterTable WHERE `box` = :id";
+                $stats = db($this->ChapterTable)->where('box', (int)$id)->count();
             }
-
-            $stmtCount = $this->db->prepare($sql);
-            $stmtCount->bindParam(':id', $id, \PDO::PARAM_INT);
-            $stmtCount->execute();
-            $counts = $stmtCount->fetch(\PDO::FETCH_ASSOC);
-            $stats = $counts['count'];
         }
 
         return $stats;
@@ -195,19 +166,14 @@ class articlesModel extends Model
     //===== DÀNH CHO CHUYÊN MỤC =====//
     public function CategoryList($limit = 10)
     {
-        $stmt = $this->db->prepare("
-            SELECT c.*, COUNT(b.id) AS count_post
-            FROM $this->CategoryTable c
-            LEFT JOIN $this->PostTable b ON c.id = b.category
-            WHERE c.slug != 'news'
-            GROUP BY c.id
-            ORDER BY c.id ASC
-            LIMIT :limit
-        ");
-        $stmt->bindParam(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        $data = $stmt->fetchAll();
-        return $data;
+        return db($this->CategoryTable)
+            ->selectRaw("{$this->CategoryTable}.*, COUNT({$this->PostTable}.id) AS count_post")
+            ->leftJoin($this->PostTable, "{$this->CategoryTable}.id", '=', "{$this->PostTable}.category")
+            ->where("{$this->CategoryTable}.slug", '!=', 'news')
+            ->groupBy("{$this->CategoryTable}.id")
+            ->orderBy("{$this->CategoryTable}.id", 'ASC')
+            ->limit((int)$limit)
+            ->get();
     }
 
     public function CategoryExist($category_id)
@@ -217,55 +183,30 @@ class articlesModel extends Model
 
     public function CategoryDetail($category_id)
     {
-        $stmt = $this->db->prepare("
-            SELECT * FROM $this->CategoryTable WHERE id = :category_id LIMIT 1
-        ");
-        $stmt->bindParam(':category_id', $category_id, \PDO::PARAM_INT);
-        $stmt->execute();
-        $data = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $data ?: null; // nếu không có thì trả về null
+        return db($this->CategoryTable)->where('id', (int)$category_id)->first();
     }
 
     public function CategoryPublish($name, $slug, $content, $keyword)
     {
-        $stmt = $this->db->prepare("INSERT INTO `$this->CategoryTable` SET
-            `name` = :name,
-            `slug` = :slug,
-            `content` = :content,
-            `keyword` = :keyword
-        ");
-        $stmt->execute([
-            'name' => _e($name),
-            'slug' => _e($slug),
+        return db($this->CategoryTable)->insert([
+            'name'    => _e($name),
+            'slug'    => _e($slug),
             'content' => _e($content),
             'keyword' => _e($keyword),
         ]);
-
-        return $this->db->lastInsertId();
     }
 
     public function CategoryDelete($category_id)
     {
-        // xóa chuyên mục theo id
-        $delete_category = $this->db->prepare("DELETE FROM `$this->CategoryTable` WHERE `id` = :id");
-        $delete_category->execute(['id' => $category_id]);
+        db($this->CategoryTable)->where('id', (int)$category_id)->delete();
         // lấy danh sách bài viết theo category
         $PostCount = $this->ForumStats('count_post_in_category', $category_id);
         $PostList = $this->PostList($category_id, $PostCount);
         foreach ($PostList as $PostDetail) {
-            // xóa bài viết theo id
-            $delete_post = $this->db->prepare("DELETE FROM `$this->PostTable` WHERE `id` = :id");
-            $delete_post->execute(['id' => $PostDetail['id']]);
-            // xóa comment theo id bài viết
-            $delete_comment = $this->db->prepare("DELETE FROM `$this->CommentTable` WHERE `blogid` = :id");
-            $delete_comment->execute(['id' => $PostDetail['id']]);
-            // xóa chap theo id bài viết
-            $delete_chap = $this->db->prepare("DELETE FROM `$this->ChapterTable` WHERE `box` = :id");
-            $delete_chap->execute(['id' => $PostDetail['id']]);
-            // xóa file theo id bài viết
-            $delete_file = $this->db->prepare("DELETE FROM `$this->FileTable` WHERE `blogid` = :id");
-            $delete_file->execute(['id' => $PostDetail['id']]);
-            // xóa tags
+            db($this->PostTable)->where('id', $PostDetail['id'])->delete();
+            db($this->CommentTable)->where('blogid', $PostDetail['id'])->delete();
+            db($this->ChapterTable)->where('box', $PostDetail['id'])->delete();
+            db($this->FileTable)->where('blogid', $PostDetail['id'])->delete();
             $this->TagsDeleteByPost($PostDetail['id']);
         }
         return null;
@@ -274,30 +215,13 @@ class articlesModel extends Model
     //===== DÀNH CHO BÀI VIẾT =====//
     public function PostListSticked($limit = 10)
     {
-        $sql = "SELECT 
-                    b.*, 
-                    c.id AS category_id,
-                    c.name AS category_name,
-                    cm.author AS last_comment_author
-                FROM $this->PostTable b
-                LEFT JOIN $this->CategoryTable c ON b.category = c.id
-                LEFT JOIN (
-                    SELECT blogid, author
-                    FROM $this->CommentTable
-                    WHERE id IN (
-                        SELECT MAX(id)
-                        FROM $this->CommentTable
-                        GROUP BY blogid
-                    )
-                ) cm ON cm.blogid = b.id
-                WHERE b.sticked = 1
-                ORDER BY b.update_time DESC
-                LIMIT :limit";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return db($this->PostTable)
+            ->selectRaw("{$this->PostTable}.*, {$this->CategoryTable}.id AS category_id, {$this->CategoryTable}.name AS category_name, (SELECT author FROM {$this->CommentTable} WHERE blogid = {$this->PostTable}.id ORDER BY id DESC LIMIT 1) AS last_comment_author")
+            ->leftJoin($this->CategoryTable, "{$this->PostTable}.category", '=', "{$this->CategoryTable}.id")
+            ->where("{$this->PostTable}.sticked", 1)
+            ->orderBy("{$this->PostTable}.update_time", 'DESC')
+            ->limit((int)$limit)
+            ->get();
     }
 
     public function PostList($category_id = 0, $per = 10, $order_by = 'update_time', $sort = 'desc', $start = 0)
@@ -305,17 +229,6 @@ class articlesModel extends Model
         $CategoryExist = false;
         if ($category_id > 0 && $this->CategoryExist($category_id)) {
             $CategoryExist = true;
-        }
-        // SQL query to fetch blog posts and category details if available
-        $sql = "SELECT b.*, 
-                       (CASE WHEN c.id IS NOT NULL THEN c.id ELSE NULL END) AS category_id,
-                       (CASE WHEN c.id IS NOT NULL THEN c.name ELSE NULL END) AS category_name
-                FROM $this->PostTable b
-                LEFT JOIN $this->CategoryTable c ON b.category = c.id";
-
-        // Append conditions based on category_id
-        if ($CategoryExist) {
-            $sql .= ' WHERE c.id = :category_id';
         }
 
         if (!in_array($order_by, Env::getList('POST_LIST_ORDER_BY', ['id', 'time', 'update_time', 'view']))) {
@@ -325,79 +238,51 @@ class articlesModel extends Model
             $sort = 'desc';
         }
 
-        // Append order and limit clauses
-        $sql .= ' ORDER BY ' . $order_by . ' ' . $sort . ' 
-                  LIMIT :start, :per';
+        $query = db($this->PostTable)
+            ->selectRaw("{$this->PostTable}.*, (CASE WHEN {$this->CategoryTable}.id IS NOT NULL THEN {$this->CategoryTable}.id ELSE NULL END) AS category_id, (CASE WHEN {$this->CategoryTable}.id IS NOT NULL THEN {$this->CategoryTable}.name ELSE NULL END) AS category_name")
+            ->leftJoin($this->CategoryTable, "{$this->PostTable}.category", '=', "{$this->CategoryTable}.id");
 
-        // Prepare the SQL statement
-        $stmt = $this->db->prepare($sql);
-
-        // Bind parameters
         if ($CategoryExist) {
-            $stmt->bindParam(':category_id', $category_id, \PDO::PARAM_INT);
+            $query->where("{$this->CategoryTable}.id", (int)$category_id);
         }
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':per', $per, \PDO::PARAM_INT);
 
-        // Execute the query
-        $stmt->execute();
-
-        // Fetch all results
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return $query
+            ->orderBy("{$this->PostTable}.{$order_by}", $sort)
+            ->limit((int)$per)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function PostListSimilar($category_id, $post_id)
     {
-        $stmt = $this->db->prepare("
-            SELECT * FROM $this->PostTable WHERE category = :category_id AND id!= :post_id ORDER BY RAND() LIMIT 5
-        ");
-        $stmt->bindParam(':category_id', $category_id, \PDO::PARAM_INT);
-        $stmt->bindParam(':post_id', $post_id, \PDO::PARAM_INT);
-        $stmt->execute();
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return db($this->PostTable)
+            ->where('category', (int)$category_id)
+            ->where('id', '!=', (int)$post_id)
+            ->orderByRaw('RAND()')
+            ->limit(5)
+            ->get();
     }
 
     public function PostListUser($nick, $start = 0, $end = 10)
     {
-        $stmt = $this->db->prepare("
-            SELECT b.*, 
-                       (CASE WHEN c.id IS NOT NULL THEN c.id ELSE NULL END) AS category_id,
-                       (CASE WHEN c.id IS NOT NULL THEN c.name ELSE NULL END) AS category_name
-                FROM $this->PostTable b
-                LEFT JOIN $this->CategoryTable c ON b.category = c.id
-                WHERE author = :nick 
-                ORDER BY update_time 
-                DESC LIMIT :start, :end
-        ");
-        $stmt->bindParam(':nick', $nick, \PDO::PARAM_STR);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':end', $end, \PDO::PARAM_INT);
-        $stmt->execute();
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return db($this->PostTable)
+            ->selectRaw("{$this->PostTable}.*, (CASE WHEN {$this->CategoryTable}.id IS NOT NULL THEN {$this->CategoryTable}.id ELSE NULL END) AS category_id, (CASE WHEN {$this->CategoryTable}.id IS NOT NULL THEN {$this->CategoryTable}.name ELSE NULL END) AS category_name")
+            ->leftJoin($this->CategoryTable, "{$this->PostTable}.category", '=', "{$this->CategoryTable}.id")
+            ->where("{$this->PostTable}.author", (string)$nick)
+            ->orderBy("{$this->PostTable}.update_time", 'DESC')
+            ->limit((int)$end)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function PostCountUser($nick)
     {
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as count FROM $this->PostTable WHERE author = :nick
-        ");
-        $stmt->bindParam(':nick', $nick, \PDO::PARAM_STR);
-        $stmt->execute();
-        $counts = $stmt->fetch(\PDO::FETCH_ASSOC);
-        $stats = $counts['count'];
-        return $stats;
+        return db($this->PostTable)->where('author', $nick)->count();
     }
 
     public function PostDetail($id)
     {
-        $stmt = $this->db->prepare("SELECT * FROM $this->PostTable WHERE id = :id LIMIT 1");
-        $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
-        $stmt->execute();
-        $output = $stmt->fetch(\PDO::FETCH_ASSOC);
-        return $output ?: null;
+        return db($this->PostTable)->where('id', (int)$id)->first();
     }
 
     public function PostLikeList($id, $action = null)
@@ -428,22 +313,9 @@ class articlesModel extends Model
         $PostLikeListSave = $nick . '.' . $PostDetail['like'];
         if ($action == 'save') {
             if (!in_array($nick, $PostLikeList) && $nick != $PostDetail['author']) {
-                // lưu vào bảng `blog`
-                $stmt_post = $this->db->prepare("
-                UPDATE `$this->PostTable` SET `like` = :like 
-                WHERE `id` = :id
-            ");
-                $stmt_post->execute(['id' => $id, 'like' => $PostLikeListSave]);
-                // lưu vào thông báo của author
+                db($this->PostTable)->where('id', (int)$id)->update(['like' => $PostLikeListSave]);
                 $system_notify_content = '@' . $nick . ' vừa bày tỏ cảm xúc trong một bài viết có mặt bạn. [url=/articles/' . $id . '-' . $PostDetail['slug'] . '.html][XEM BÀI VIẾT][/url]';
-                $stmt_system_notify = $this->db->prepare('INSERT INTO `mail` SET
-                    `sender_receiver` = :sender_receiver,
-                    `nick` = :nick,
-                    `content` = :content,
-                    `time` = :time,
-                    `view` = :view
-                ');
-                $stmt_system_notify->execute([
+                db('mail')->insert([
                     'sender_receiver' => $PostDetail['author'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT'),
                     'nick' => $nick,
                     'content' => $system_notify_content,
@@ -466,75 +338,40 @@ class articlesModel extends Model
         if (!in_array($col, $allowedCols, true)) {
             return 0;
         }
-        $stmt = $this->db->prepare("UPDATE `$this->PostTable` SET `$col` = :col_value WHERE `id` = :id");
-        $stmt->bindValue(':col_value', $cold_val, \PDO::PARAM_STR);
-        $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->rowCount();
+        return db($this->PostTable)->where('id', (int)$id)->update([$col => $cold_val]);
     }
 
     public function PostPublish($category, $title, $slug, $content, $author, $meta_data = null)
     {
-        $stmt = $this->db->prepare("INSERT INTO `$this->PostTable` SET
-            `category` = :category,
-            `title` = :title,
-            `slug` = :slug,
-            `content` = :content,
-            `author` = :author,
-            `time` = :time,
-            `update_time` = :update_time,
-            `meta_data` = :meta_data
-        ");
-        $stmt->execute([
-            'category' => $category,
-            'title' => $title,
-            'slug' => _e($slug),
-            'content' => $content,
-            'author' => $author,
-            'time' => TIME,
+        return db($this->PostTable)->insert([
+            'category'    => $category,
+            'title'       => $title,
+            'slug'        => _e($slug),
+            'content'     => $content,
+            'author'      => $author,
+            'time'        => TIME,
             'update_time' => TIME,
-            'meta_data' => $meta_data
+            'meta_data'   => $meta_data,
         ]);
-        return $this->db->lastInsertId();
     }
 
     public function PostEdit($id, $data)
     {
-        $stmt = $this->db->prepare("UPDATE `$this->PostTable` SET
-            `category` = :category,
-            `title` = :title,
-            `slug` = :slug,
-            `content` = :content,
-            `meta_data` = :meta_data
-        WHERE `id` = :id
-        ");
-        $stmt->execute([
-            'category' => $data['category'],
-            'title' => $data['title'],
-            'slug' => _e($data['slug']),
-            'content' => $data['content'],
+        return db($this->PostTable)->where('id', (int)$id)->update([
+            'category'  => $data['category'],
+            'title'     => $data['title'],
+            'slug'      => _e($data['slug']),
+            'content'   => $data['content'],
             'meta_data' => $data['meta_data'] ?? null,
-            'id' => $id
         ]);
-        return $stmt->rowCount();
     }
 
     public function PostDelete($id)
     {
-        // xóa bài viết theo id
-        $delete_post = $this->db->prepare("DELETE FROM `$this->PostTable` WHERE `id` = :id");
-        $delete_post->execute(['id' => $id]);
-        // xóa comment theo id bài viết
-        $delete_comment = $this->db->prepare("DELETE FROM `$this->CommentTable` WHERE `blogid` = :id");
-        $delete_comment->execute(['id' => $id]);
-        // xóa chap theo id bài viết
-        $delete_chap = $this->db->prepare("DELETE FROM `$this->ChapterTable` WHERE `box` = :id");
-        $delete_chap->execute(['id' => $id]);
-        // xóa file theo id bài viết
-        $delete_file = $this->db->prepare("DELETE FROM `$this->FileTable` WHERE `blogid` = :id");
-        $delete_file->execute(['id' => $id]);
-        
-        // xóa tags
+        db($this->PostTable)->where('id', (int)$id)->delete();
+        db($this->CommentTable)->where('blogid', (int)$id)->delete();
+        db($this->ChapterTable)->where('box', (int)$id)->delete();
+        db($this->FileTable)->where('blogid', (int)$id)->delete();
         $this->TagsDeleteByPost($id);
     }
 
@@ -542,10 +379,8 @@ class articlesModel extends Model
     {
         $PostID = $PostDetail['id'];
         if (!isset($_SESSION['post_viewed_' . $PostID])) {
-            $stmt = $this->db->prepare("UPDATE `$this->PostTable` SET `view` = :view WHERE `id` = :id");
-            $stmt->execute([
+            db($this->PostTable)->where('id', (int)$PostDetail['id'])->update([
                 'view' => $PostDetail['view'] + 1,
-                'id' => $PostDetail['id']
             ]);
             $_SESSION['post_viewed_' . $PostID] = true;
         }
@@ -555,127 +390,78 @@ class articlesModel extends Model
     //===== DÀNH CHO CHƯƠNG BÀI VIẾT =====//
     public function ChapterList($post_id)
     {
-        // SQL query to fetch blog posts and category details if available
-        $sql = 'SELECT * FROM ' . $this->ChapterTable;
+        $query = db($this->ChapterTable);
         if ($post_id > 0) {
-            $sql .= ' WHERE box = :post_id';
+            $query->where('box', (int)$post_id);
         }
-        $sql .= ' ORDER BY id desc';
-        $stmt = $this->db->prepare($sql);
-        if ($post_id > 0) {
-            $stmt->bindParam(':post_id', $post_id, \PDO::PARAM_INT);
-        }
-        // Execute the query
-        $stmt->execute();
-        // Fetch all results
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return $query->orderBy('id', 'desc')->get();
     }
 
     public function ChapterEdit($id, $data)
     {
-        $stmt = $this->db->prepare("UPDATE `$this->ChapterTable` SET
-            `title` = :title,
-            `slug` = :slug,
-            `content` = :content,
-            `meta_data` = :meta_data
-        WHERE `id` = :id
-        ");
-        $stmt->execute([
-            'title' => _e($data['title']),
-            'slug' => _e($data['slug']),
-            'content' => _e($data['content']),
-            'meta_data' => $data['meta_data'] ?? null,
-            'id' => $id
-        ]);
-        return $stmt->rowCount();
+        return db($this->ChapterTable)
+            ->where('id', $id)
+            ->update([
+                'title' => _e($data['title']),
+                'slug' => _e($data['slug']),
+                'content' => _e($data['content']),
+                'meta_data' => $data['meta_data'] ?? null,
+            ]);
     }
 
     public function ChapterDelete($id)
     {
-        $stmt = $this->db->prepare("DELETE FROM `$this->ChapterTable` WHERE `id` = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->rowCount();
+        return db($this->ChapterTable)->where('id', $id)->delete();
     }
 
     public function ChapterPublish($box, $title, $slug, $content, $author, $meta_data = null)
     {
-        $stmt = $this->db->prepare("INSERT INTO `$this->ChapterTable` SET
-            `box` = :box,
-            `title` = :title,
-            `slug` = :slug,
-            `content` = :content,
-            `author` = :author,
-            `time` = :time,
-            `meta_data` = :meta_data
-        ");
-        $stmt->execute([
+        return db($this->ChapterTable)->insert([
             'box' => $box,
             'title' => _e($title),
             'slug' => _e($slug),
             'content' => _e($content),
             'author' => $author,
             'time' => TIME,
-            'meta_data' => $meta_data
+            'meta_data' => $meta_data,
         ]);
-        return $this->db->lastInsertId();
     }
 
     //===== DÀNH CHO BÌNH LUẬN =====//
     public function CommentList($post_id, $start, $end)
     {
-        // SQL query to fetch blog posts and category details if available
-        $sql = "
-            SELECT * FROM $this->CommentTable WHERE blogid = :post_id ORDER BY id asc LIMIT :start, :per
-        ";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':post_id', $post_id, \PDO::PARAM_INT);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':per', $end, \PDO::PARAM_INT);
-        // Execute the query
-        $stmt->execute();
-        // Fetch all results
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $results;
+        return db($this->CommentTable)
+            ->where('blogid', (int)$post_id)
+            ->orderBy('id', 'asc')
+            ->limit((int)$end)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function CommentSend($PostDetail, $author, $comment)
     {
         // lưu bình luận
-        $stmt = $this->db->prepare("INSERT INTO `$this->CommentTable` SET
-            `blogid` = :blogid,
-            `author` = :author,
-            `comment` = :comment,
-            `time` = :time
-        ");
-        $stmt->execute([
+        db($this->CommentTable)->insert([
             'blogid' => $PostDetail['id'],
             'author' => $author,
             'comment' => $comment,
-            'time' => TIME
+            'time' => TIME,
         ]);
         // cập nhật thời gian cho post
-        $stmt_post = $this->db->prepare("UPDATE `$this->PostTable` SET `update_time` = :update_time WHERE `id` = :id");
-        $stmt_post->execute([
-            'update_time' => TIME,
-            'id' => $PostDetail['id']
-        ]);
+        db($this->PostTable)
+            ->where('id', $PostDetail['id'])
+            ->update(['update_time' => TIME]);
         if ($author != $PostDetail['author']) {
             // lưu vào thông báo của author post
             $system_notify_content = '@' . $author . ' đã bình luận trong một bài viết của bạn. [url=/articles/' . $PostDetail['id'] . '-' . $PostDetail['slug'] . '.html][XEM BÀI VIẾT] ' . $PostDetail['title'] . '[/url]';
-            $stmt_system_notify = $this->db->prepare('INSERT INTO `mail` SET
-                `sender_receiver` = :sender_receiver,
-                `nick` = :nick,
-                `content` = :content,
-                `time` = :time,
-                `view` = :view
-        ');
-            $stmt_system_notify->execute([
+            $e2e = new E2E();
+            $encrypted_notify = $e2e->encrypt($system_notify_content, (string) Env::get('E2E_SECRET_KEY', ''), 'mail' . $author);
+            db('mail')->insert([
                 'sender_receiver' => $PostDetail['author'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT'),
                 'nick' => $author,
-                'content' => $system_notify_content,
+                'content' => $encrypted_notify,
                 'time' => TIME,
-                'view' => 'no'
+                'view' => 'no',
             ]);
         }
 
@@ -694,16 +480,12 @@ class articlesModel extends Model
 
             try {
                 if ($module === 'shoutbox') {
-                    $stmt_q = $this->db->prepare('SELECT `name` FROM `chat` WHERE `id` = :id');
-                    $stmt_q->execute(['id' => $quoteId]);
-                    if ($row = $stmt_q->fetch()) {
+                    if ($row = db('chat')->select(['name'])->where('id', $quoteId)->first()) {
                         $quoteAuthorNick = $row['name'];
                         $quoteUrl = '[url=/shoutbox]trò chuyện[/url]';
                     }
                 } elseif ($module === 'articles') {
-                    $stmt_q = $this->db->prepare('SELECT `author`, `blogid` FROM `articles_cmt` WHERE `id` = :id');
-                    $stmt_q->execute(['id' => $quoteId]);
-                    if ($row = $stmt_q->fetch()) {
+                    if ($row = db('articles_cmt')->select(['author', 'blogid'])->where('id', $quoteId)->first()) {
                         $quoteAuthorNick = $row['author'];
                         $quoteUrl = '[url=/articles/' . $PostDetail['id'] . '-' . $PostDetail['slug'] . '.html]bài viết ' . $PostDetail['title'] . '[/url]';
                     }
@@ -715,19 +497,14 @@ class articlesModel extends Model
                     
                     $bot_name = (string) Env::get('USER_BOT', 'SystemBOT');
                     
-                    $stmt_notify = $this->db->prepare('INSERT INTO `mail` SET
-                        `sender_receiver` = :sender_receiver,
-                        `nick` = :nick,
-                        `content` = :content,
-                        `time` = :time,
-                        `view` = :view
-                    ');
-                    $stmt_notify->execute([
+                    $e2e = new E2E();
+                    $encrypted_notify = $e2e->encrypt($system_notify_content, (string) Env::get('E2E_SECRET_KEY', ''), 'mail' . $author);
+                    db('mail')->insert([
                         'sender_receiver' => $quoteAuthorNick . '_' . $bot_name,
                         'nick' => $author,
-                        'content' => $system_notify_content,
+                        'content' => $encrypted_notify,
                         'time' => TIME,
-                        'view' => 'no'
+                        'view' => 'no',
                     ]);
                 }
             } catch (Exception $e) {}
@@ -739,29 +516,19 @@ class articlesModel extends Model
     //===== PHẦN DÀNH CHO CÁC LƯU TRỮ ĐÃ CŨ =====//
     public function FileList($per, $start)
     {
-        $stmt = $this->db->prepare("
-            SELECT * FROM `$this->FileTable`
-            ORDER BY `id` DESC
-            LIMIT :per OFFSET :start
-        ");
-        $stmt->bindParam(':per', $per, \PDO::PARAM_INT);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->execute();
-        $output = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $output;
+        return db($this->FileTable)
+            ->orderBy('id', 'desc')
+            ->limit((int)$per)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function FileListForPost($PostDetail)
     {
-        $stmt = $this->db->prepare("
-            SELECT * FROM `$this->FileTable`
-            WHERE `blogid` = :blogid
-            ORDER BY `id` DESC
-        ");
-        $stmt->bindParam(':blogid', $PostDetail['id'], \PDO::PARAM_INT);
-        $stmt->execute();
-        $output = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        return $output;
+        return db($this->FileTable)
+            ->where('blogid', (int)$PostDetail['id'])
+            ->orderBy('id', 'desc')
+            ->get();
     }
 
     public function FileDetail($id)
@@ -799,7 +566,7 @@ class articlesModel extends Model
         }
 
         // Trừ xu nguyên tử (atomic check xu >= price)
-        $stmtPurchaser = $this->db->prepare('UPDATE `users` SET `xu` = `xu` - :price WHERE `nick` = :nick AND `xu` >= :price');
+        $stmtPurchaser = Database::pdo()->prepare('UPDATE `users` SET `xu` = `xu` - :price WHERE `nick` = :nick AND `xu` >= :price');
         $stmtPurchaser->execute([
             'price' => $price,
             'nick' => $MyDetail['nick']
@@ -810,28 +577,19 @@ class articlesModel extends Model
 
         // Cộng xu cho tác giả tập tin
         if ($price > 0 && !empty($FileDetail['author']) && $FileDetail['author'] !== $MyDetail['nick']) {
-            $stmtAuthor = $this->db->prepare('UPDATE `users` SET `xu` = `xu` + :price WHERE `nick` = :author');
-            $stmtAuthor->execute([
-                'price' => $price,
-                'author' => $FileDetail['author']
-            ]);
+            db('users')->where('nick', $FileDetail['author'])->increment('xu', $price);
         }
 
         // Thêm chủ đầu tư vào danh sách đã mua
-        $stmtFile = $this->db->prepare("UPDATE `$this->FileTable` SET `mua` = :mua WHERE `id` = :id");
-        $stmtFile->execute([
-            'id' => $FileDetail['id'],
-            'mua' => ($MyDetail['nick'] . '.' . $FileDetail['mua'])
-        ]);
+        db($this->FileTable)
+            ->where('id', $FileDetail['id'])
+            ->update(['mua' => ($MyDetail['nick'] . '.' . $FileDetail['mua'])]);
         return 'Success';
     }
 
     public function FileDelete($id)
     {
-        $stmt = $this->db->prepare("DELETE FROM `$this->FileTable` WHERE `id` = :id");
-        $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->rowCount();
+        return db($this->FileTable)->where('id', (int)$id)->delete();
     }
 
 
@@ -839,20 +597,7 @@ class articlesModel extends Model
     // Upload Telegram
     public function FileUploadTelegram($PostDetail, $data)
     {
-        $stmt = $this->db->prepare("INSERT INTO `$this->FileTable` SET
-            `time` = :time,
-            `filename` = :filename,
-            `filecate` = :filecate,
-            `filesize` = :filesize,
-            `type` = :type,
-            `author` = :author,
-            `status` = :status,
-            `price` = :price,
-            `saleoff` = :saleoff,
-            `condition` = :condition,
-            `blogid` = :blogid
-        ");
-        $stmt->execute([
+        return db($this->FileTable)->insert([
             'time' => TIME,
             'filename' => _e($data['filename']),
             'filecate' => _e($data['filecate']),
@@ -863,53 +608,41 @@ class articlesModel extends Model
             'price' => $data['price'],
             'saleoff' => $data['saleoff'],
             'condition' => $data['condition'],
-            'blogid' => $PostDetail['id']
+            'blogid' => $PostDetail['id'],
         ]);
-        return $this->db->lastInsertId();
     }
 
     //===== DÀNH CHO TAGS =====//
     public function TagGetBySlug($slug)
     {
-        $stmt = $this->db->prepare("SELECT * FROM `$this->TagTable` WHERE `slug` = :slug LIMIT 1");
-        $stmt->execute(['slug' => $slug]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+        return db($this->TagTable)->where('slug', $slug)->first();
     }
 
     public function TagsGetByPost($post_id)
     {
-        $sql = "SELECT t.* FROM `$this->TagTable` t 
-                JOIN `$this->PostTagTable` pt ON t.id = pt.tag_id 
-                WHERE pt.post_id = :post_id";
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute(['post_id' => $post_id]);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return db($this->TagTable)
+            ->select(["{$this->TagTable}.*"])
+            ->join($this->PostTagTable, "{$this->TagTable}.id", '=', "{$this->PostTagTable}.tag_id")
+            ->where("{$this->PostTagTable}.post_id", $post_id)
+            ->get();
     }
 
     public function PostListByTag($tag_id, $per = 10, $start = 0)
     {
-        $sql = "SELECT b.*, 
-                       (CASE WHEN c.id IS NOT NULL THEN c.id ELSE NULL END) AS category_id,
-                       (CASE WHEN c.id IS NOT NULL THEN c.name ELSE NULL END) AS category_name
-                FROM `$this->PostTable` b
-                LEFT JOIN `$this->CategoryTable` c ON b.category = c.id
-                JOIN `$this->PostTagTable` pt ON b.id = pt.post_id
-                WHERE pt.tag_id = :tag_id
-                ORDER BY b.update_time DESC
-                LIMIT :start, :per";
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindParam(':tag_id', $tag_id, \PDO::PARAM_INT);
-        $stmt->bindParam(':start', $start, \PDO::PARAM_INT);
-        $stmt->bindParam(':per', $per, \PDO::PARAM_INT);
-        $stmt->execute();
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return db($this->PostTable)
+            ->selectRaw("{$this->PostTable}.*, (CASE WHEN {$this->CategoryTable}.id IS NOT NULL THEN {$this->CategoryTable}.id ELSE NULL END) AS category_id, (CASE WHEN {$this->CategoryTable}.id IS NOT NULL THEN {$this->CategoryTable}.name ELSE NULL END) AS category_name")
+            ->leftJoin($this->CategoryTable, "{$this->PostTable}.category", '=', "{$this->CategoryTable}.id")
+            ->join($this->PostTagTable, "{$this->PostTable}.id", '=', "{$this->PostTagTable}.post_id")
+            ->where("{$this->PostTagTable}.tag_id", (int)$tag_id)
+            ->orderBy("{$this->PostTable}.update_time", 'DESC')
+            ->limit((int)$per)
+            ->offset((int)$start)
+            ->get();
     }
 
     public function ForumStatsByTag($tag_id)
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM `$this->PostTagTable` WHERE `tag_id` = :tag_id");
-        $stmt->execute(['tag_id' => $tag_id]);
-        return $stmt->fetchColumn();
+        return db($this->PostTagTable)->where('tag_id', (int)$tag_id)->count();
     }
 
     public function TagsUpdateForPost($post_id, $tags_array)
@@ -927,17 +660,17 @@ class articlesModel extends Model
             $slug = $tag['slug'];
 
             // Check if tag exists
-            $stmt = $this->db->prepare("SELECT `id` FROM `$this->TagTable` WHERE `slug` = :slug LIMIT 1");
-            $stmt->execute(['slug' => $slug]);
-            $tag_row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            $tag_row = db($this->TagTable)->select(['id'])->where('slug', $slug)->first();
 
             if ($tag_row) {
                 $tag_id = $tag_row['id'];
             } else {
                 // Create new tag
-                $stmt = $this->db->prepare("INSERT INTO `$this->TagTable` (`name`, `slug`, `count`) VALUES (:name, :slug, 0)");
-                $stmt->execute(['name' => $name, 'slug' => $slug]);
-                $tag_id = $this->db->lastInsertId();
+                $tag_id = db($this->TagTable)->insert([
+                    'name' => $name,
+                    'slug' => $slug,
+                    'count' => 0,
+                ]);
             }
             $new_tag_ids[] = $tag_id;
         }
@@ -948,18 +681,31 @@ class articlesModel extends Model
 
         // 3. Add new tag relations
         foreach ($tags_to_add as $tag_id) {
-            $stmt = $this->db->prepare("INSERT IGNORE INTO `$this->PostTagTable` (`post_id`, `tag_id`) VALUES (:post_id, :tag_id)");
-            $stmt->execute(['post_id' => $post_id, 'tag_id' => $tag_id]);
-            
-            $this->db->prepare("UPDATE `$this->TagTable` SET `count` = `count` + 1 WHERE `id` = :tag_id")->execute(['tag_id' => $tag_id]);
+            $exists = db($this->PostTagTable)
+                ->where('post_id', $post_id)
+                ->where('tag_id', $tag_id)
+                ->exists();
+            if (!$exists) {
+                db($this->PostTagTable)->insert([
+                    'post_id' => $post_id,
+                    'tag_id'  => $tag_id,
+                ]);
+            }
+
+            db($this->TagTable)->where('id', $tag_id)->increment('count');
         }
 
         // 4. Remove old tag relations
         foreach ($tags_to_remove as $tag_id) {
-            $stmt = $this->db->prepare("DELETE FROM `$this->PostTagTable` WHERE `post_id` = :post_id AND `tag_id` = :tag_id");
-            $stmt->execute(['post_id' => $post_id, 'tag_id' => $tag_id]);
-            
-            $this->db->prepare("UPDATE `$this->TagTable` SET `count` = GREATEST(0, `count` - 1) WHERE `id` = :tag_id")->execute(['tag_id' => $tag_id]);
+            db($this->PostTagTable)
+                ->where('post_id', $post_id)
+                ->where('tag_id', $tag_id)
+                ->delete();
+
+            db($this->TagTable)
+                ->where('id', $tag_id)
+                ->where('count', '>', 0)
+                ->decrement('count');
         }
     }
 
@@ -969,9 +715,11 @@ class articlesModel extends Model
         foreach ($current_tags_rows as $row) {
             $tag_id = $row['id'];
             // Decrement count
-            $this->db->prepare("UPDATE `$this->TagTable` SET `count` = GREATEST(0, `count` - 1) WHERE `id` = :tag_id")->execute(['tag_id' => $tag_id]);
+            db($this->TagTable)
+                ->where('id', $tag_id)
+                ->where('count', '>', 0)
+                ->decrement('count');
         }
-        $stmt = $this->db->prepare("DELETE FROM `$this->PostTagTable` WHERE `post_id` = :post_id");
-        $stmt->execute(['post_id' => $post_id]);
+        db($this->PostTagTable)->where('post_id', $post_id)->delete();
     }
 }

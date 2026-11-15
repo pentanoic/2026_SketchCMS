@@ -242,8 +242,6 @@ class mailController extends Controller
             // Giải mã E2E
             if ($e2e->isEncrypted($MailSystemDetail['content'], $e2eKey, 'mail' . $MailSystemDetail['nick'])) {
                 $MailSystemDetail['content'] = $e2e->decrypt($MailSystemDetail['content'], $e2eKey, 'mail' . $MailSystemDetail['nick']);
-            } else {
-                $MailSystemDetail['content'] = "<i>Nội dung này chưa mã hóa đầu cuối nên không thể hiển thị</i>";
             }
             
             $MailSystemDetail['content'] = $this->articlesLibrary->bbcode($MailSystemDetail['content']);

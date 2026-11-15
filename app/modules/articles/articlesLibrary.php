@@ -257,9 +257,7 @@ class articlesLibrary extends Library
 
             try {
                 if ($module === 'shoutbox') {
-                    $stmt = $db->prepare('SELECT `name`, `comment` FROM `chat` WHERE `id` = :id');
-                    $stmt->execute(['id' => $quoteId]);
-                    if ($data = $stmt->fetch()) {
+                    if ($data = db('chat')->select(['name', 'comment'])->where('id', $quoteId)->first()) {
                         $quoteTitle = 'Trích dẫn từ <b>' . _e($data['name']) . '</b>';
 
                         $raw_comment = $data['comment'];
@@ -272,9 +270,7 @@ class articlesLibrary extends Library
                         $quoteContent = preg_replace('/@\[module=.*?;quote=.*?\]/', '[quote]', $raw_comment);
                     }
                 } elseif ($module === 'articles') {
-                    $stmt = $db->prepare('SELECT `author`, `comment` FROM `articles_cmt` WHERE `id` = :id');
-                    $stmt->execute(['id' => $quoteId]);
-                    if ($data = $stmt->fetch()) {
+                    if ($data = db('articles_cmt')->select(['author', 'comment'])->where('id', $quoteId)->first()) {
                         $quoteTitle = 'Trích dẫn từ <b>' . _e($data['author']) . '</b>';
 
                         $raw_comment = $data['comment'];

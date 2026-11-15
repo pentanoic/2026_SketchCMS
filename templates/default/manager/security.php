@@ -1,6 +1,6 @@
 <?php
 $this->layout('manager/layout', [
-    'title' => $page_title ?? 'Vận hành an toàn'
+    'title' => $page_title ?? 'Vận hành an toàn', 'panelActive' => 'security'
 ]);
 ?>
 
@@ -136,8 +136,27 @@ $this->layout('manager/layout', [
                         </div>
                     <?php endif; ?>
 
-                    <h6 class="border-bottom pb-2 mt-4 mb-3" style="border-color: var(--border) !important;">4. Khác</h6>
-                    <p class="text-muted"><small><i>Các công cụ quét SQL Injection và phân quyền sẽ được cập nhật trong các phiên bản tới...</i></small></p>
+                    <h6 class="border-bottom pb-2 mt-4 mb-3" style="border-color: var(--border) !important;">4. Khởi tạo lại dữ liệu ban đầu</h6>
+                    <div class="alert alert-warning" style="background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: var(--text);">
+                        <strong><i class="fa fa-exclamation-triangle"></i> Cảnh báo:</strong> Thao tác này sẽ xóa toàn bộ dữ liệu bài viết, chuyên mục, bình luận, tin nhắn, tập tin... trên cơ sở dữ liệu đang được chọn (<strong><?= strtoupper((string) Env::get('DB_CONNECTION', 'mysql')) ?></strong>) và <strong>giữ nguyên toàn bộ bảng <code>users</code></strong>.
+                        <form action="" method="POST" class="mt-3" onsubmit="return confirm('Bạn có chắc chắn muốn khởi tạo lại toàn bộ dữ liệu (trừ users) trên CSDL đang chọn?');">
+                            <input type="hidden" name="reset_db_data" value="1">
+                            <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
+                            <input type="hidden" name="module_name" value="security">
+
+                            <div class="form-group mb-2" style="max-width: 300px;">
+                                <label class="font-weight-bold">Nhập tên module để xác nhận (<code>security</code>):</label>
+                                <input type="text" name="confirm_module" class="form-control" placeholder="security" required>
+                            </div>
+                            <div class="form-group mb-3" style="max-width: 300px;">
+                                <label class="font-weight-bold">Mật khẩu xác nhận:</label>
+                                <input type="password" name="admin_pass" class="form-control" placeholder="Nhập mật khẩu" required>
+                            </div>
+                            <button type="submit" class="dw-btn dw-btn-danger">
+                                <i class="fa fa-refresh"></i> Khởi tạo lại dữ liệu
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
