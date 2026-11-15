@@ -59,8 +59,7 @@ class shoutboxModel extends Model
                     $notified_users[] = $quoteAuthorNick;
                     $system_notify_content = '@' . $user['nick'] . ' đã trích dẫn tin nhắn của bạn trong ' . $quoteUrl;
 
-                    // UserBot is defined globally, if not we fallback to "Hệ Thống"
-                    $bot_name = defined('UserBot') ? UserBot : 'bot';
+                    $bot_name = (string) Env::get('USER_BOT', 'SystemBOT');
 
                     $stmt_notify = $this->db->prepare('INSERT INTO `mail` SET
                         `sender_receiver` = :sender_receiver,
@@ -89,8 +88,8 @@ class shoutboxModel extends Model
     {
         $stmt = $this->db->prepare('SELECT * FROM `chat` WHERE `id` = :id');
         $stmt->execute(['id' => $id]);
-        $data = $stmt->fetchAll()[0];
-        return $data;
+        $data = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $data ?: null;
     }
 
     public function ChatList($start, $limit)

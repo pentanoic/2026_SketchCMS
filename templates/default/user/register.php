@@ -7,7 +7,7 @@
     <div class="dw-card-body">
         <?php if ($error): ?>
         <div class="dw-alert dw-alert-danger mb-4">
-            <i class="fa fa-exclamation-triangle mr-1"></i> <?= _e($error) ?>
+            <i class="fa fa-exclamation-triangle mr-1"></i> <?= $error ?>
         </div>
         <?php endif ?>
         

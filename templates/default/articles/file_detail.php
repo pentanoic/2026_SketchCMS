@@ -110,10 +110,9 @@
                 <div class="dw-alert dw-alert-warning mb-0 text-center"><i class="fa fa-exclamation-triangle"></i> Vui lòng đăng nhập để tải xuống tập tin!</div>
             <?php else: ?>
                 <?php if ($error): ?>
-                    <div class="dw-alert dw-alert-danger mb-3"><?= _e($error) ?></div>
+                    <div class="dw-alert dw-alert-danger mb-3"><?= $error ?></div>
                 <?php endif ?>
                 <form method="POST" class="text-center">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
                     <div class="mb-3">Bạn có muốn mua tập tin này không?</div>
                     <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
                     <button type="submit" class="dw-btn dw-btn-success dw-btn-block">

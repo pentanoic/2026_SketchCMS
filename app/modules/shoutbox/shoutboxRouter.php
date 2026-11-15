@@ -1,6 +1,6 @@
 <?php
 
-$router->add('/shoutbox', 'shoutboxController@ChatHome', 'GET');
+$router->add('/shoutbox', 'shoutboxController@ChatHome', 'GET|POST');
 $router->add('/shoutbox/count', 'shoutboxController@ChatCount', 'GET');
 $router->add('/shoutbox/ele', 'shoutboxController@ChatEle', 'GET');
 $router->add('/shoutbox/list', 'shoutboxController@ChatList', 'GET');

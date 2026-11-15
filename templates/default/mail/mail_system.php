@@ -43,8 +43,8 @@
                             <h6 class="m-0 font-weight-bold <?= $isNew ? 'text-dark' : 'text-muted' ?>">
                                 <?php
                                 $sysName = 'Hệ thống';
-                                if (defined('UserBot')) {
-                                    $sysNick = UserBot;
+                                $sysNick = (string) Env::get('USER_BOT', '');
+                                if ($sysNick !== '') {
                                     $sysInfo = \Container::get(\DB::class)->prepare("SELECT name FROM users WHERE nick = ?");
                                     $sysInfo->execute([$sysNick]);
                                     if ($sysFetch = $sysInfo->fetch(\PDO::FETCH_ASSOC)) {
@@ -66,6 +66,12 @@
                 </div>
                 <?php endforeach ?>
             </div>
+
+            <?php if (!empty($MailSystemListPaging)): ?>
+            <div class="dw-card-footer bg-light border-top p-3 d-flex justify-content-center">
+                <?= $MailSystemListPaging ?>
+            </div>
+            <?php endif ?>
             
         <?php else: ?>
             <div class="p-5 text-center text-muted">

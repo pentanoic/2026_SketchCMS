@@ -120,8 +120,11 @@ $this->layout('manager/layout', [
             plugins: {
                 upload: {
                     serverPath: typeof TelegramUploadUrl !== 'undefined' ? TelegramUploadUrl : '',
-                    fileFieldName: 'file',
-                    headers: {},
+                    fileFieldName: 'document',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-Token': '<?= getCSRFToken() ?>'
+                    },
                     urlPropertyName: 'url' // Phụ thuộc vào API trả về, cần điều chỉnh nếu API trả cấu trúc khác
                 }
             }

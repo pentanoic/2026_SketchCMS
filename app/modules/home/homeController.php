@@ -85,7 +85,7 @@ class homeController extends Controller
                     $MyDetail = $this->request->user()->user;
                     $CanPostPublish = true;
 
-                    if ($CategoryDetail['id'] == NewsID && $MyDetail['level'] < 120) {
+                    if ($CategoryDetail['id'] == Env::get('NEWS_ID', '1') && $MyDetail['level'] < 120) {
                         $CanPostPublish = false;
                     }
                 }
@@ -141,8 +141,12 @@ class homeController extends Controller
         $getPostListSticked = $this->articlesModel->PostListSticked(5);
         $PostListSticked = [];
         foreach ($getPostListSticked as $PostDetail) {
-            $last_comment_author = mb_strtolower($PostDetail['last_comment_author']);
-            $PostDetail['UserDetail_LastCommentAuthor'] = $this->userModel->UserDetailWithFields('nick', $last_comment_author);
+            $author = mb_strtolower((string)($PostDetail['author'] ?? ''));
+            $last_comment_author = !empty($PostDetail['last_comment_author'])
+                ? mb_strtolower((string)$PostDetail['last_comment_author'])
+                : $author;
+            $PostDetail['UserDetail'] = $this->userModel->UserDetailWithFields('nick', $author);
+            $PostDetail['UserDetail_LastCommentAuthor'] = $this->userModel->UserDetailWithFields('nick', $last_comment_author) ?: $PostDetail['UserDetail'];
             $PostDetail['comment'] = $this->articlesModel->ForumStats('count_comment_in_post', $PostDetail['id']);
 
             $PostListSticked[] = $PostDetail;

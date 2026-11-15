@@ -11,8 +11,16 @@ function nosineup(f, ob) {
             var upUrl = typeof TelegramUploadUrl !== 'undefined' ? TelegramUploadUrl : 'https://nosineup.stockage.workers.dev/upload';
             var downUrl = typeof TelegramDownloadBaseUrl !== 'undefined' ? TelegramDownloadBaseUrl : 'https://nosineup.stockage.workers.dev/download';
 
+            var headers = {};
+            var csrfInput = document.querySelector('input[name="csrf_token"]');
+            if (csrfInput && csrfInput.value && upUrl.indexOf('/media/upload') !== -1) {
+                fd.append("csrf_token", csrfInput.value);
+                headers['X-Requested-With'] = 'XMLHttpRequest';
+            }
+
             fetch(upUrl, {
                 method: 'POST',
+                headers: headers,
                 body: fd
             })
             .then(response => response.json())

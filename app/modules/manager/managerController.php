@@ -90,10 +90,7 @@ class managerController extends Controller
             $systemConfig['app']['site']['scheme'] = $_POST['app_scheme'] ?? $systemConfig['app']['site']['scheme'];
             $systemConfig['app']['site']['host'] = $_POST['app_host'] ?? $systemConfig['app']['site']['host'];
             
-            // Format lại mảng
-            $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-
-            file_put_contents($systemConfigPath, $content);
+            Env::saveSystemConfig($systemConfig);
             setcookie('manager_settings_success', 'Cập nhật cấu hình thành công!', time() + 5, '/');
             redirect(url('/manager/settings'));
             return;
@@ -122,15 +119,22 @@ class managerController extends Controller
         $chat_id = $this->request->postVar('TELEGRAM_CHAT_ID', '');
         $worker_url = $this->request->postVar('CLOUDFLARE_WORKER_URL', '');
 
-        if (empty($mode) || empty($token) || empty($chat_id)) {
-            return ['status' => 'error', 'message' => 'Vui lòng nhập đầy đủ thông tin bắt buộc'];
+        if (empty($mode)) {
+            return ['status' => 'error', 'message' => 'Vui lòng chọn chế độ upload'];
+        }
+        if ($mode === 'direct' && (empty($token) || empty($chat_id))) {
+            return ['status' => 'error', 'message' => 'Chế độ Direct yêu cầu nhập Telegram Bot Token và Chat ID'];
+        }
+        if ($mode === 'cloudflare' && empty($worker_url)) {
+            return ['status' => 'error', 'message' => 'Chế độ Cloudflare yêu cầu nhập Cloudflare Worker URL'];
+        }
+
+        $envPath = ROOT . '.env';
+        if (file_exists($envPath) && !is_writable($envPath)) {
+            return ['status' => 'error', 'message' => 'File .env không có quyền ghi.'];
         }
 
         $systemConfigPath = ROOT . 'system/configs/autoload/system.php';
-        if (!is_writable($systemConfigPath)) {
-            return ['status' => 'error', 'message' => 'File system.php không có quyền ghi.'];
-        }
-
         $systemConfig = require $systemConfigPath;
         if (!isset($systemConfig['media'])) {
             $systemConfig['media'] = [];
@@ -141,13 +145,10 @@ class managerController extends Controller
         $systemConfig['media']['telegram_chat_id'] = $chat_id;
         $systemConfig['media']['cloudflare_worker_url'] = $worker_url;
 
-        // Format lại mảng
-        $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-
-        if (file_put_contents($systemConfigPath, $content)) {
+        if (Env::saveSystemConfig($systemConfig)) {
             return ['status' => 'success', 'message' => 'Lưu cấu hình thành công'];
         } else {
-            return ['status' => 'error', 'message' => 'Không thể ghi file system.php'];
+            return ['status' => 'error', 'message' => 'Không thể ghi file .env'];
         }
     }
 
@@ -200,8 +201,7 @@ class managerController extends Controller
             $systemConfig = require $systemConfigPath;
             $systemConfig['app']['default_template'] = $template;
             
-            $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            file_put_contents($systemConfigPath, $content);
+            Env::saveSystemConfig($systemConfig);
         }
         
         redirect(url('/manager/templates'));
@@ -696,19 +696,25 @@ class managerController extends Controller
                 redirect(url('/manager/url_rules'));
                 return;
             }
-            $parts = explode('@', $target);
-            $systemConfig['url_rules']['rewrite'][$path] = [
-                'controller' => $parts[0] ?? '',
-                'action' => $parts[1] ?? '',
-                'method' => $method
-            ];
+            if (strpos($target, '@') !== false) {
+                $parts = explode('@', $target);
+                $systemConfig['url_rules']['rewrite'][$path] = [
+                    'controller' => $parts[0] ?? '',
+                    'action' => $parts[1] ?? '',
+                    'method' => $method
+                ];
+            } else {
+                $systemConfig['url_rules']['rewrite'][$path] = [
+                    'target' => $target,
+                    'method' => $method
+                ];
+            }
         } else {
             redirect(url('/manager/url_rules'));
             return;
         }
 
-        $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-        file_put_contents($systemPath, $content);
+        Env::saveSystemConfig($systemConfig);
 
         setcookie('manager_url_success', 'Đã thêm quy tắc thành công!', time() + 5, '/');
         redirect(url('/manager/url_rules'));
@@ -785,8 +791,7 @@ class managerController extends Controller
             'method' => $method
         ];
 
-        $content = "<?php\n\nreturn " . var_export($systemConfig, true) . ";\n";
-        file_put_contents($systemPath, $content);
+        Env::saveSystemConfig($systemConfig);
 
         setcookie('manager_url_success', 'Cập nhật quy tắc thành công!', time() + 5, '/');
         redirect(url('/manager/url_rules'));
@@ -817,8 +822,7 @@ class managerController extends Controller
                 unset($systemConfig['url_rules']['rewrite'][$path]);
             }
 
-            $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            file_put_contents($systemPath, $content);
+            Env::saveSystemConfig($systemConfig);
             setcookie('manager_url_success', 'Đã xóa quy tắc!', time() + 5, '/');
         }
 
@@ -1192,8 +1196,7 @@ class managerController extends Controller
         $name = $_POST['name'] ?? '';
         $installSql = (strpos($name, 'custom_') === 0) ? APP . 'modules' . DS . 'custom_module' . DS . $name . DS . $name . '_install.sql' : APP . 'modules' . DS . $name . DS . $name . '_install.sql';
         if (file_exists($installSql) && strpos($name, 'custom_') === 0) {
-            $db = new PDO('mysql:host='.DB_HOST.';dbname='.DB_NAME, DB_USER, DB_PASS);
-            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $db = Container::get(DB::class);
             try {
                 $sql = file_get_contents($installSql);
                 $queries = explode(';', $sql);
@@ -1210,7 +1213,7 @@ class managerController extends Controller
                     }
                 }
                 
-                // Save to system config
+                // Save to system config (.env)
                 $systemConfigPath = ROOT . 'system/configs/autoload/system.php';
                 $systemConfig = require $systemConfigPath;
                 if (!isset($systemConfig['app']['installed_modules'])) {
@@ -1218,8 +1221,7 @@ class managerController extends Controller
                 }
                 if (!in_array($name, $systemConfig['app']['installed_modules'])) {
                     $systemConfig['app']['installed_modules'][] = $name;
-                    $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-                    file_put_contents($systemConfigPath, $content);
+                    Env::saveSystemConfig($systemConfig);
                 }
 
                 setcookie('manager_module_success', 'Đã cài đặt module thành công!', time() + 5, '/');
@@ -1243,8 +1245,7 @@ class managerController extends Controller
         $name = $_POST['name'] ?? '';
         $uninstallSql = (strpos($name, 'custom_') === 0) ? APP . 'modules' . DS . 'custom_module' . DS . $name . DS . $name . '_uninstall.sql' : APP . 'modules' . DS . $name . DS . $name . '_uninstall.sql';
         if (file_exists($uninstallSql) && strpos($name, 'custom_') === 0) {
-            $db = new PDO('mysql:host='.DB_HOST.';dbname='.DB_NAME, DB_USER, DB_PASS);
-            $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $db = Container::get(DB::class);
             try {
                 $sql = file_get_contents($uninstallSql);
                 $queries = explode(';', $sql);
@@ -1255,7 +1256,7 @@ class managerController extends Controller
                     }
                 }
                 
-                // Remove from system config
+                // Remove from system config (.env)
                 $systemConfigPath = ROOT . 'system/configs/autoload/system.php';
                 $systemConfig = require $systemConfigPath;
                 if (isset($systemConfig['app']['installed_modules'])) {
@@ -1264,8 +1265,7 @@ class managerController extends Controller
                         unset($systemConfig['app']['installed_modules'][$key]);
                         // Reindex array
                         $systemConfig['app']['installed_modules'] = array_values($systemConfig['app']['installed_modules']);
-                        $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-                        file_put_contents($systemConfigPath, $content);
+                        Env::saveSystemConfig($systemConfig);
                     }
                 }
 
@@ -1347,8 +1347,7 @@ class managerController extends Controller
                 if (isset($systemConfig['app']['installed_modules']) && in_array($name, $systemConfig['app']['installed_modules'])) {
                     $idx = array_search($name, $systemConfig['app']['installed_modules']);
                     $systemConfig['app']['installed_modules'][$idx] = $newName;
-                    $configContent = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-                    file_put_contents($systemConfigPath, $configContent);
+                    Env::saveSystemConfig($systemConfig);
                 }
                 
                 $name = $newName; // update for description.json
@@ -1575,7 +1574,7 @@ class managerController extends Controller
         $path = $_POST['path'] ?? ''; // e.g. backend/Controller.php or backend/
 
         $second_pass = $_POST['second_password'] ?? '';
-        $correct_second_pass = defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '';
+        $correct_second_pass = (string) Env::get('SECOND_PASSWORD', '');
         
         if ($action !== 'save_file' && $correct_second_pass !== '' && $second_pass !== $correct_second_pass) {
             setcookie('manager_module_error', 'Mật khẩu cấp 2 không chính xác.', time() + 5, '/');
@@ -1789,23 +1788,23 @@ class managerController extends Controller
             
             $systemConfig['security']['rate_limit'] = $rate_limit;
             
-            $content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            file_put_contents($systemConfigPath, $content);
+            Env::saveSystemConfig($systemConfig);
             
             $success = 'Cập nhật cấu hình bảo mật thành công!';
         }
         
         // Đếm tin nhắn chưa mã hóa (Mail + Shoutbox)
+        $e2eKey = (string) Env::get('E2E_SECRET_KEY', '');
         $mails = $pdo->query("SELECT id, nick, content FROM mail")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($mails as $mail) {
-            if (!$e2e->isEncrypted($mail['content'], E2E_SECRET_KEY, 'mail' . $mail['nick'])) {
+            if (!$e2e->isEncrypted($mail['content'], $e2eKey, 'mail' . $mail['nick'])) {
                 $unencrypted_count++;
             }
         }
         
         $shouts = $pdo->query("SELECT id, name, comment FROM chat")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($shouts as $shout) {
-            if (!$e2e->isEncrypted($shout['comment'], E2E_SECRET_KEY, 'shoutbox' . $shout['name'])) {
+            if (!$e2e->isEncrypted($shout['comment'], $e2eKey, 'shoutbox' . $shout['name'])) {
                 $unencrypted_count++;
             }
         }
@@ -1835,8 +1834,8 @@ class managerController extends Controller
             // Process chunks
             foreach ($mails as $mail) {
                 if ($migrated >= $limit) break;
-                if (!$e2e->isEncrypted($mail['content'], E2E_SECRET_KEY, 'mail' . $mail['nick'])) {
-                    $encrypted = $e2e->encrypt($mail['content'], E2E_SECRET_KEY, 'mail' . $mail['nick']);
+                if (!$e2e->isEncrypted($mail['content'], $e2eKey, 'mail' . $mail['nick'])) {
+                    $encrypted = $e2e->encrypt($mail['content'], $e2eKey, 'mail' . $mail['nick']);
                     $upd = $pdo->prepare("UPDATE mail SET content = ? WHERE id = ?");
                     $upd->execute([$encrypted, $mail['id']]);
                     $migrated++;
@@ -1846,8 +1845,8 @@ class managerController extends Controller
             
             foreach ($shouts as $shout) {
                 if ($migrated >= $limit) break;
-                if (!$e2e->isEncrypted($shout['comment'], E2E_SECRET_KEY, 'shoutbox' . $shout['name'])) {
-                    $encrypted = $e2e->encrypt($shout['comment'], E2E_SECRET_KEY, 'shoutbox' . $shout['name']);
+                if (!$e2e->isEncrypted($shout['comment'], $e2eKey, 'shoutbox' . $shout['name'])) {
+                    $encrypted = $e2e->encrypt($shout['comment'], $e2eKey, 'shoutbox' . $shout['name']);
                     $upd = $pdo->prepare("UPDATE chat SET comment = ? WHERE id = ?");
                     $upd->execute([$encrypted, $shout['id']]);
                     $migrated++;
@@ -1975,8 +1974,7 @@ class managerController extends Controller
             $systemConfig = include($systemFile);
             $systemConfig['smtp'] = $new_smtp;
             
-            $file_content = "<?php\nreturn " . var_export($systemConfig, true) . ";\n";
-            file_put_contents($systemFile, $file_content);
+            Env::saveSystemConfig($systemConfig);
             
             return view('manager/smtp', [
                 'page_title' => 'Cấu hình SMTP',

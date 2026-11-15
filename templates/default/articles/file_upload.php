@@ -30,11 +30,10 @@
     
     <div class="dw-card-body">
         <?php if ($error): ?>
-        <div class="dw-alert dw-alert-warning mb-3"><i class="fa fa-exclamation-triangle"></i> <?= _e($error) ?></div>
+        <div class="dw-alert dw-alert-warning mb-3"><i class="fa fa-exclamation-triangle"></i> <?= $error ?></div>
         <?php endif ?>
         
         <form id="form" method="post" action="">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div id="dai" class="mb-3 text-center"></div>
             
             <div class="row">

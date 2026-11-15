@@ -444,7 +444,7 @@ class articlesModel extends Model
                     `view` = :view
                 ');
                 $stmt_system_notify->execute([
-                    'sender_receiver' => $PostDetail['author'] . '_' . UserBot,
+                    'sender_receiver' => $PostDetail['author'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT'),
                     'nick' => $nick,
                     'content' => $system_notify_content,
                     'time' => TIME,
@@ -671,7 +671,7 @@ class articlesModel extends Model
                 `view` = :view
         ');
             $stmt_system_notify->execute([
-                'sender_receiver' => $PostDetail['author'] . '_' . UserBot,
+                'sender_receiver' => $PostDetail['author'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT'),
                 'nick' => $author,
                 'content' => $system_notify_content,
                 'time' => TIME,
@@ -713,7 +713,7 @@ class articlesModel extends Model
                     $notified_users[] = $quoteAuthorNick;
                     $system_notify_content = '@' . $author . ' đã trích dẫn bình luận của bạn trong ' . $quoteUrl;
                     
-                    $bot_name = defined('UserBot') ? UserBot : 'bot';
+                    $bot_name = (string) Env::get('USER_BOT', 'SystemBOT');
                     
                     $stmt_notify = $this->db->prepare('INSERT INTO `mail` SET
                         `sender_receiver` = :sender_receiver,

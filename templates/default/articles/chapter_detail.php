@@ -93,9 +93,9 @@
             <?php if ($isPersonCanAction): ?>
             <div class="dw-alert dw-alert-warning p-2 mb-3 d-flex align-items-center" style="gap: 10px;">
                 <b><i class="fa fa-wrench"></i> Công cụ:</b>
-                <a href="/articles/chapter-<?= $ChapterDetail['id'] ?>/edit" class="dw-btn dw-btn-sm dw-btn-ghost"><i class="fa fa-pencil-square-o"></i> Sửa</a>
-                <a href="/articles/post-<?= $ChapterDetail['id'] ?>/add-chap" class="dw-btn dw-btn-sm dw-btn-ghost"><i class="fa fa-plus"></i> Thêm chương</a>
-                <a href="/articles/chapter-<?= $ChapterDetail['id'] ?>/delete" class="dw-btn dw-btn-sm dw-btn-danger" onclick="return confirm('XÁC NHẬN XÓA?')"><i class="fa fa-trash-o"></i> Xóa</a>
+                <a href="<?= url('/articles/chapter-' . $ChapterDetail['id'] . '/edit') ?>" class="dw-btn dw-btn-sm dw-btn-ghost"><i class="fa fa-pencil-square-o"></i> Sửa</a>
+                <a href="<?= url('/articles/post-' . $PostDetail['id'] . '/add-chap') ?>" class="dw-btn dw-btn-sm dw-btn-ghost"><i class="fa fa-plus"></i> Thêm chương</a>
+                <a href="<?= url('/articles/chapter-' . $ChapterDetail['id'] . '/delete') ?>" class="dw-btn dw-btn-sm dw-btn-danger" onclick="return confirm('XÁC NHẬN XÓA?')"><i class="fa fa-trash-o"></i> Xóa</a>
             </div>
             <?php endif ?>
 
@@ -123,7 +123,7 @@
                     <i class="fa fa-angle-right mr-2 text-primary"></i> <?= $ChapterItem['title'] ?> <span class="dw-badge dw-badge-accent ml-2">Đang đọc</span>
                 </div>
                 <?php else: ?>
-                <a href="<?= url('/view-chap/' . $ChapterItem['id'] . '-' . $ChapterItem['slug']) ?>" class="list-group-item list-group-item-action d-flex align-items-center py-2">
+                <a href="<?= url('/view-chap/' . $ChapterItem['id'] . '-' . $ChapterItem['slug'] . '.html') ?>" class="list-group-item list-group-item-action d-flex align-items-center py-2">
                     <i class="fa fa-angle-right mr-2 text-muted"></i> <?= $ChapterItem['title'] ?>
                 </a>
                 <?php endif ?>

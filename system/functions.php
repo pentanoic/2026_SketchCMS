@@ -14,9 +14,9 @@
  */
 
 if (!function_exists('_e')) {
-    function _e(string $text)
+    function _e(?string $text)
     {
-        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+        $text = htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
 
         return trim($text);
     }
@@ -26,6 +26,13 @@ if (!function_exists('csp_nonce')) {
     function csp_nonce(): string
     {
         return defined('CSP_NONCE') ? CSP_NONCE : '';
+    }
+}
+
+if (!function_exists('env')) {
+    function env(string $key, $default = null)
+    {
+        return Env::get($key, $default);
     }
 }
 
@@ -77,11 +84,16 @@ if (!function_exists('display_error')) {
     function display_error($error)
     {
         if (is_array($error)) {
-            if (sizeof($error) === 1) {
-                $error = array_pop($error);
+            $escaped = array_map(function ($item) {
+                return htmlspecialchars((string)$item, ENT_QUOTES, 'UTF-8');
+            }, $error);
+            if (sizeof($escaped) === 1) {
+                $error = array_pop($escaped);
             } else {
-                $error = '- ' . implode('<br />- ', $error);
+                $error = '- ' . implode('<br />- ', $escaped);
             }
+        } elseif (is_string($error)) {
+            $error = htmlspecialchars($error, ENT_QUOTES, 'UTF-8');
         }
 
         return $error;
@@ -139,7 +151,8 @@ if (!function_exists('paging')) {
 if (!function_exists('redirect')) {
     function redirect(string $uri = '/')
     {
-        header('Location: ' . SITE_PATH . $uri);
+        $sitePath = (string) Env::get('SITE_PATH', '');
+        header('Location: ' . $sitePath . $uri);
         exit;
     }
 }
@@ -159,11 +172,16 @@ if (!function_exists('request')) {
 if (!function_exists('url')) {
     function url(string $path = '', $absulute = true)
     {
+        $siteScheme = (string) Env::get('SITE_SCHEME', 'http://');
+        $siteHost = (string) Env::get('SITE_HOST', 'localhost');
+        $sitePath = (string) Env::get('SITE_PATH', '');
+        $siteUrl = $siteScheme . $siteHost . $sitePath;
+
         if ($absulute) {
-            return SITE_URL . '/' . ltrim($path, '/');
+            return $siteUrl . '/' . ltrim($path, '/');
         }
 
-        return (SITE_PATH ? '/' . ltrim(SITE_PATH, '/') : '')
+        return ($sitePath ? '/' . ltrim($sitePath, '/') : '')
             . '/' . ltrim($path, '/');
     }
 }
@@ -274,12 +292,15 @@ if (!function_exists('ago')) {
 if (!function_exists('RoleColor')) {
     function RoleColor($UserDetail = [], $get = 'color')
     {
-        $user_name = htmlspecialchars($UserDetail['name']);
+        if (!is_array($UserDetail) || empty($UserDetail)) {
+            return $get === 'position' ? '<b>Member</b>' : '<b>Khách</b>';
+        }
+        $user_name = htmlspecialchars((string)($UserDetail['name'] ?? ''));
         $user_name = str_replace('ㅤ', ' ', $user_name);
         $user_name = trim($user_name);
-        $user_name = strlen($user_name) >= 3 ? $user_name : htmlspecialchars($UserDetail['nick']);
+        $user_name = strlen($user_name) >= 3 ? $user_name : htmlspecialchars((string)($UserDetail['nick'] ?? ''));
 
-        $user_level = intval($UserDetail['level']);
+        $user_level = intval($UserDetail['level'] ?? 0);
         $register_time = isset($UserDetail['reg']) ? $UserDetail['reg'] : time();
         $days = (int) floor((time() - $register_time) / 86400);
 
@@ -357,8 +378,11 @@ if (!function_exists('getAvtUser')) {
     function getAvtUser($UserDetail = [])
     {
         $avatarBaseURL = 'https://cdn.jsdelivr.net/gh/jesuisnk/dorew-assets/avatar/';
-        $avatar0 = $UserDetail['avatar'];
-        $userlv = $UserDetail['level'];
+        if (!is_array($UserDetail) || empty($UserDetail)) {
+            return $avatarBaseURL . 'cat.png';
+        }
+        $avatar0 = (string)($UserDetail['avatar'] ?? '5');
+        $userlv = intval($UserDetail['level'] ?? 0);
 
         // Mapping of avatar numbers to filenames
         $avatarMap = [
@@ -412,7 +436,10 @@ if (!function_exists('getCoverUser')) {
     function getCoverUser($UserDetail = [])
     {
         $coverBaseURL = 'https://dorew-site.github.io/assets/cover/';
-        $cover0 = $UserDetail['cover'];
+        if (!is_array($UserDetail) || empty($UserDetail)) {
+            return $coverBaseURL . '1.jpg';
+        }
+        $cover0 = (string)($UserDetail['cover'] ?? '1');
         if ($cover0 > '0' && $cover0 <= '18') {
             $cover0 = $coverBaseURL . $cover0 . '.jpg';
         }
@@ -618,8 +645,8 @@ if (!function_exists('generate_api_token')) {
             'exp' => time() + $ttl,
             'jti' => bin2hex(random_bytes(8))
         ]));
-        $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
-                . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+        $secret = (string) Env::get('E2E_SECRET_KEY', 'sketch_secret')
+                . (string) Env::get('SECOND_PASSWORD', '');
         $sig = hash_hmac('sha256', $payload, $secret);
         return $payload . '.' . $sig;
     }
@@ -633,8 +660,8 @@ if (!function_exists('verify_api_token')) {
             return null;
         }
         [$payloadB64, $sig] = $parts;
-        $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
-                . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+        $secret = (string) Env::get('E2E_SECRET_KEY', 'sketch_secret')
+                . (string) Env::get('SECOND_PASSWORD', '');
         $expected = hash_hmac('sha256', $payloadB64, $secret);
         if (!hash_equals($expected, $sig)) {
             return null;
@@ -827,7 +854,10 @@ if (!function_exists('btoa')) {
 if (!function_exists('GetRoleColorStr')) {
     function GetRoleColorStr($UserDetail = [])
     {
-        $user_level = intval($UserDetail['level']);
+        if (!is_array($UserDetail) || empty($UserDetail)) {
+            return '#2F4F4F';
+        }
+        $user_level = intval($UserDetail['level'] ?? 0);
         $register_time = isset($UserDetail['reg']) ? $UserDetail['reg'] : time();
         $days = (int) floor((time() - $register_time) / 86400);
 

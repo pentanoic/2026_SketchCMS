@@ -253,7 +253,7 @@ class articlesLibrary extends Library
             $quoteContent = 'Nội dung không tồn tại hoặc đã bị xóa.';
 
             $e2e = new E2E();
-            $e2e_key = defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : '';
+            $e2e_key = (string) Env::get('E2E_SECRET_KEY', '');
 
             try {
                 if ($module === 'shoutbox') {

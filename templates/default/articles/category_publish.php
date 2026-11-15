@@ -23,11 +23,10 @@
             
             <div class="dw-card-body">
                 <?php if ($error): ?>
-                <div class="dw-alert dw-alert-danger mb-3"><?= _e($error) ?></div>
+                <div class="dw-alert dw-alert-danger mb-3"><?= $error ?></div>
                 <?php endif ?>
                 
                 <form method="post">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
                     <div class="dw-form-group">
                         <label class="dw-label">Tên chuyên mục (Tối đa 50 kí tự) <span class="text-danger">*</span></label>
                         <input class="dw-input" type="text" name="name" maxlength="50" placeholder="VD: Lập trình PHP" required>
@@ -62,7 +61,6 @@
             <div class="dw-card-body">
                 <?php if ($CategoryCount > 0): ?>
                 <form method="post">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
                     <div class="list-group mb-4" style="border-radius: var(--radius-sm); overflow: hidden;">
                         <?php foreach ($CategoryList as $CategoryItem): ?>
                         <label class="list-group-item list-group-item-action d-flex align-items-center py-2" style="cursor: pointer; background: var(--surface-muted); border-color: var(--border); margin-bottom: 4px; border-radius: var(--radius-sm);">

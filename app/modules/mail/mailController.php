@@ -58,8 +58,9 @@ class mailController extends Controller
             $lastContent = $LatestMailDetail['content'];
             // Giải mã E2E
             $e2e = new E2E();
-            if ($e2e->isEncrypted($lastContent, E2E_SECRET_KEY, 'mail' . $LastSender)) {
-                $lastContent = $e2e->decrypt($lastContent, E2E_SECRET_KEY, 'mail' . $LastSender);
+            $e2eKey = (string) Env::get('E2E_SECRET_KEY', '');
+            if ($e2e->isEncrypted($lastContent, $e2eKey, 'mail' . $LastSender)) {
+                $lastContent = $e2e->decrypt($lastContent, $e2eKey, 'mail' . $LastSender);
             } else {
                 $lastContent = "<i>Nội dung này chưa mã hóa đầu cuối nên không thể hiển thị</i>";
             }
@@ -108,7 +109,7 @@ class mailController extends Controller
         $isReceiverBlock = false;
         if (
             in_array($SenderDetail['nick'], $ReceiverDetailBlockList)
-            || $ReceiverDetail['nick'] == UserBot
+            || $ReceiverDetail['nick'] == Env::get('USER_BOT', 'SystemBOT')
         ) {
             $isReceiverBlock = true;
         }
@@ -140,8 +141,9 @@ class mailController extends Controller
             
             // Giải mã E2E
             $e2e = new E2E();
-            if ($e2e->isEncrypted($MailDetail['content'], E2E_SECRET_KEY, 'mail' . $MailDetail['nick'])) {
-                $MailDetail['content'] = $e2e->decrypt($MailDetail['content'], E2E_SECRET_KEY, 'mail' . $MailDetail['nick']);
+            $e2eKey = (string) Env::get('E2E_SECRET_KEY', '');
+            if ($e2e->isEncrypted($MailDetail['content'], $e2eKey, 'mail' . $MailDetail['nick'])) {
+                $MailDetail['content'] = $e2e->decrypt($MailDetail['content'], $e2eKey, 'mail' . $MailDetail['nick']);
             } else {
                 $MailDetail['content'] = "<i>Nội dung này chưa mã hóa đầu cuối nên không thể hiển thị</i>";
             }
@@ -177,7 +179,7 @@ class mailController extends Controller
                 if (!$error) {
                     // Mã hóa E2E
                     $e2e = new E2E();
-                    $encrypted_content = $e2e->encrypt($content, E2E_SECRET_KEY, 'mail' . $SenderDetail['nick']);
+                    $encrypted_content = $e2e->encrypt($content, (string) Env::get('E2E_SECRET_KEY', ''), 'mail' . $SenderDetail['nick']);
                     
                     $this->mailModel->MailSend($SenderDetail, $ReceiverDetail, $encrypted_content);
                     redirect($_SERVER['REQUEST_URI']);
@@ -235,10 +237,11 @@ class mailController extends Controller
         $getMailSystemList = $this->mailModel->MailSystemList($MyDetail, $per, $start);
         $MailSystemList = [];
         $e2e = new E2E();
+        $e2eKey = (string) Env::get('E2E_SECRET_KEY', '');
         foreach($getMailSystemList as $MailSystemDetail) {
             // Giải mã E2E
-            if ($e2e->isEncrypted($MailSystemDetail['content'], E2E_SECRET_KEY, 'mail' . $MailSystemDetail['nick'])) {
-                $MailSystemDetail['content'] = $e2e->decrypt($MailSystemDetail['content'], E2E_SECRET_KEY, 'mail' . $MailSystemDetail['nick']);
+            if ($e2e->isEncrypted($MailSystemDetail['content'], $e2eKey, 'mail' . $MailSystemDetail['nick'])) {
+                $MailSystemDetail['content'] = $e2e->decrypt($MailSystemDetail['content'], $e2eKey, 'mail' . $MailSystemDetail['nick']);
             } else {
                 $MailSystemDetail['content'] = "<i>Nội dung này chưa mã hóa đầu cuối nên không thể hiển thị</i>";
             }

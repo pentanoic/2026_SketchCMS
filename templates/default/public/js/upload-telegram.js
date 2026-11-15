@@ -18,9 +18,16 @@ function frUpload() {
 
     const formData = new FormData();
     formData.append('document', file);
+    const csrfInput = form.querySelector('input[name="csrf_token"]');
+    const headers = {};
+    if (csrfInput && csrfInput.value && UrlUpload.indexOf('/media/upload') !== -1) {
+        formData.append('csrf_token', csrfInput.value);
+        headers['X-Requested-With'] = 'XMLHttpRequest';
+    }
 
- fetch(UrlUpload, {
+    fetch(UrlUpload, {
         method: 'POST',
+        headers: headers,
         body: formData
     })
     .then(response => response.json())

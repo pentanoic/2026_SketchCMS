@@ -23,7 +23,7 @@ class Kernel
         $router = Container::get(Router::class);
 
         $router->setAllowedMethods($request->getAllowedMethods());
-        $router->setBasePath(SITE_PATH);
+        $router->setBasePath((string) Env::get('SITE_PATH', ''));
 
         $this->matchRoute($request, $router);
 

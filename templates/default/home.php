@@ -88,7 +88,7 @@
     }
 </style>
 
-<script>
+<script nonce="<?= _e(csp_nonce()) ?>">
     document.addEventListener('DOMContentLoaded', function() {
         const buttons = {
             'post-list-btn': 'post-list',
@@ -305,9 +305,13 @@
         </div>
         <div class="text-center" style="font-size:13px;background:var(--surface-muted);padding:8px;border-radius:var(--radius-sm);">
             <i class="fa fa-user-plus text-success mr-1"></i> Thành viên mới nhất:
-            <a href="/user/<?= $ForumStats['latest_user']['nick'] ?>" style="font-weight:600;">
-                <?= $ForumStats['latest_user']['name'] ?>
+            <?php if (!empty($ForumStats['latest_user'])): ?>
+            <a href="<?= url('/user/' . _e($ForumStats['latest_user']['nick'])) ?>" style="font-weight:600;">
+                <?= _e($ForumStats['latest_user']['name'] ?: $ForumStats['latest_user']['nick']) ?>
             </a>
+            <?php else: ?>
+            <span>Chưa có</span>
+            <?php endif; ?>
         </div>
     </div>
 </div>

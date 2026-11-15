@@ -65,20 +65,30 @@ $(document).ready(function () {
 });
 
 async function gogoChat() {
+    totalChat = parseInt(totalChat, 10) || 0;
     reload_chat = setInterval(async function () {
         fetch(chat_count).then(t => t.json()).then(t => {
-            if (t - a > 3) {
-                window.location.href = "/";
+            t = parseInt(t, 10) || 0;
+            totalChat = parseInt(totalChat, 10) || 0;
+            if (t - totalChat > 3) {
+                window.location.href = "/shoutbox";
+                return;
             }
 
             for (var a = t; a > totalChat;) {
                 totalChat++;
                 var m = chat_ele + totalChat;
-                $.get(m, function (t) {
-                    $("#idChat").prepend(t), $("#idChat .list1:last").remove(), phanTrangChat(totalChat, pageID)
+                $.get(m, function (html) {
+                    if (html && html.trim() !== "") {
+                        $("#idChat").prepend(html);
+                        if ($("#idChat .dw-post-wrap").length > 10) {
+                            $("#idChat .dw-post-wrap:last").remove();
+                        }
+                        phanTrangChat(totalChat, pageID);
+                    }
                 })
             }
-        })
+        }).catch(function () {})
     }, typeof sysRateLimit !== 'undefined' && sysRateLimit > 4000 ? sysRateLimit : 4000)
 }
 

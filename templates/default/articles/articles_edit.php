@@ -41,17 +41,16 @@
     
     <div class="dw-card-body">
         <?php if ($error): ?>
-            <div class="dw-alert dw-alert-danger mb-3"><?= _e($error) ?></div>
+            <div class="dw-alert dw-alert-danger mb-3"><?= $error ?></div>
         <?php endif ?>
         
         <form name="form" action method="post">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div class="dw-form-group">
                 <label class="dw-label">Tiêu đề <span class="text-danger">*</span></label>
                 <input value="<?= $inputTitle ?? '' ?>" class="dw-input" type="text" name="title" maxlength="300" required>
             </div>
             
-            <?php if ($action == 'post' && $CategoryDetail['id'] != NewsID): ?>
+            <?php if ($action == 'post' && $CategoryDetail['id'] != Env::get('NEWS_ID', '1')): ?>
             <div class="dw-form-group">
                 <label class="dw-label">Chuyên mục <span class="text-danger">*</span></label>
                 <select name="category" class="dw-input dw-select">

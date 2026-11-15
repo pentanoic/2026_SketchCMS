@@ -12,6 +12,8 @@
  * Please do not remove or modify this copyright notice.
  */
 
+namespace SketchCMS;
+
 class Error
 {
     private static bool $registered = false;
@@ -53,7 +55,7 @@ class Error
      */
     public static function handleException(\Throwable $e): void
     {
-        $isDebug = defined('APP_DEBUG') && APP_DEBUG === true;
+        $isDebug = (bool) \Env::get('APP_DEBUG', false);
         $message = $isDebug ? $e->getMessage() : 'Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.';
 
         self::abort(500, $message, self::expectsJson());

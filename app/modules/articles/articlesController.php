@@ -246,7 +246,7 @@ class articlesController extends Controller
                         $token = $this->request->postVar('csrf_token', '');
                         $checktoken = isCSRFTokenValid($token);
                         if ($checktoken) {
-                            $error[] = 'Invalid token';
+                            $errorComment = 'Invalid token';
                         }
                         unsetCSRFToken();
                         generateCSRFToken();
@@ -818,11 +818,16 @@ class articlesController extends Controller
 
     private function FileStockage()
     {
+        $mediaCfg = config('system.media', []);
+        $mode = $mediaCfg['telegram_upload_mode'] ?? 'cloudflare';
+        $workerUrl = rtrim($mediaCfg['cloudflare_worker_url'] ?? 'https://nosineup.stockage.workers.dev', '/');
+        $telegramDownloadUrl = ($mode === 'direct') ? url('/media/download', false) : ($workerUrl . '/download');
+
         return [
             'xtgem' => 'http://dorew.uiwap.com/storage',
             'gdrive' => 'https://uuou4jgndra8t9flkddfgg.on.drv.tw/file.dorew.ovh',
             'ipfs' => 'https://dweb.link/ipfs/',
-            'telegram' => 'https://nosineup.stockage.workers.dev/download'
+            'telegram' => $telegramDownloadUrl
         ];
     }
 
@@ -889,12 +894,17 @@ class articlesController extends Controller
             }
         }
 
+        $mediaCfg = config('system.media', []);
+        $mode = $mediaCfg['telegram_upload_mode'] ?? 'cloudflare';
+        $workerUrl = rtrim($mediaCfg['cloudflare_worker_url'] ?? 'https://nosineup.stockage.workers.dev', '/');
+        $uploadTo = ($mode === 'direct') ? url('/media/upload', false) : ($workerUrl . '/upload');
+
         return view()->setTitle('Tải lên tập tin')->render('articles/file_upload', [
             'PostDetail' => $PostDetail,
             'CategoryList' => $CategoryList,
             'CategoryDetail' => $CategoryDetail,
 
-            'UploadTo' => 'https://nosineup.stockage.workers.dev/upload',
+            'UploadTo' => $uploadTo,
             'MaxFileSizeAllow' => (1024 * 1024 * 10),
             'error' => $error
         ]);

@@ -28,11 +28,10 @@
     
     <div class="dw-card-body">
         <?php if ($error): ?>
-            <div class="dw-alert dw-alert-danger mb-4"><i class="fa fa-exclamation-triangle mr-1"></i> <?= _e($error) ?></div>
+            <div class="dw-alert dw-alert-danger mb-4"><i class="fa fa-exclamation-triangle mr-1"></i> <?= $error ?></div>
         <?php endif ?>
 
         <form id="form" method="post" autocomplete="off">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <?php if ($action == 'info'): ?>
                 <!-- Bố cục lưới cho form thông tin -->
                 <div class="row">

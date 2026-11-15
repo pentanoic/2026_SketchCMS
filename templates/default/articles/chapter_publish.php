@@ -29,11 +29,10 @@
     
     <div class="dw-card-body">
         <?php if ($error): ?>
-            <div class="dw-alert dw-alert-danger mb-3"><?= _e($error) ?></div>
+            <div class="dw-alert dw-alert-danger mb-3"><?= $error ?></div>
         <?php endif ?>
         
         <form name="form" action method="post">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <div class="dw-form-group">
                 <label class="dw-label">Tiêu đề chương <span class="text-danger">*</span></label>
                 <input value="<?= $inputTitle ?? '' ?>" class="dw-input" type="text" name="title" maxlength="300" placeholder="Nhập tiêu đề chương..." required>

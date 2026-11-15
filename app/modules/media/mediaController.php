@@ -21,9 +21,8 @@ class mediaController extends Controller
     {
         parent::__construct();
         $this->mediaModel = $this->load->model('media');
-        // Lấy cấu hình
-        $systemConfig = require ROOT . 'system/configs/autoload/system.php';
-        $this->mediaConfig = $systemConfig['media'] ?? [
+        // Lấy cấu hình từ hệ thống (.env -> system.php)
+        $this->mediaConfig = config('system.media') ?: [
             'telegram_upload_mode' => 'cloudflare',
             'telegram_bot_token' => '',
             'telegram_chat_id' => '',

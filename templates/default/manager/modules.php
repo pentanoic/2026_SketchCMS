@@ -110,9 +110,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                                     <!-- Installed Custom Modules -->
                                     <?php foreach ($extended_modules as $m): ?>
                                         <?php 
-                                        $systemConfigPath = ROOT . 'system/configs/autoload/system.php';
-                                        $systemConfig = require $systemConfigPath;
-                                        $installedModules = $systemConfig['app']['installed_modules'] ?? [];
+                                        $installedModules = config('system.app.installed_modules', []);
                                         $isInstalled = in_array($m['name'], $installedModules);
                                         
                                         if ($isInstalled):
@@ -170,9 +168,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Modu
                                     <?php 
                                     $hasUninstalled = false;
                                     foreach ($extended_modules as $m): 
-                                        $systemConfigPath = ROOT . 'system/configs/autoload/system.php';
-                                        $systemConfig = require $systemConfigPath;
-                                        $installedModules = $systemConfig['app']['installed_modules'] ?? [];
+                                        $installedModules = config('system.app.installed_modules', []);
                                         $isInstalled = in_array($m['name'], $installedModules);
                                         
                                         if (!$isInstalled):

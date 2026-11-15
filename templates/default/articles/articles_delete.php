@@ -41,11 +41,10 @@
     
     <div class="dw-card-body">
         <?php if ($error): ?>
-            <div class="dw-alert dw-alert-warning mb-3"><?= _e($error) ?></div>
+            <div class="dw-alert dw-alert-warning mb-3"><?= $error ?></div>
         <?php endif ?>
         
         <form name="form" action method="post" class="text-center py-4">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
             <i class="fa fa-exclamation-triangle fa-4x text-warning mb-3"></i>
             <h4 class="mb-3">Bạn có thực sự muốn xóa <?php echo ($action == 'post') ? 'chủ đề' : 'chương'; ?> này không?</h4>
             <p class="text-muted mb-4">Hành động này không thể hoàn tác. Mọi dữ liệu liên quan sẽ bị xóa vĩnh viễn.</p>

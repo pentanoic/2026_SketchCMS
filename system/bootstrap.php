@@ -27,7 +27,7 @@ header('X-Frame-Options: SAMEORIGIN');
 header('X-Content-Type-Options: nosniff');
 header('X-XSS-Protection: 1; mode=block');
 header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
-header("Content-Security-Policy: default-src 'self' data: https:; script-src 'self' 'nonce-" . CSP_NONCE . "' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: http:; font-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self'; base-uri 'self'; object-src 'none';");
+header("Content-Security-Policy: default-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: http:; font-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'self'; base-uri 'self'; object-src 'none';");
 
 if (version_compare(PHP_VERSION, '8.0', '<')) {
     // If the version below 8.0, we stops the script and displays an error
@@ -36,6 +36,10 @@ if (version_compare(PHP_VERSION, '8.0', '<')) {
         . 'Your needs PHP 8.0 or higher'
         . '</div>');
 }
+
+// Load Environment Variables (.env)
+require_once SYSTEM . 'classes' . DS . 'Env.php';
+Env::load();
 
 // Global config
 require(SYSTEM . 'configs' . DS . 'init.php');
@@ -48,8 +52,9 @@ require(APP . 'vendor' . DS . 'autoload.php');
 require(SYSTEM . 'functions.php');
 
 // Register Centralized Security & Exception Handler
-if (class_exists('Error')) {
-    Error::register();
+require_once(SYSTEM . 'classes' . DS . 'Error.php');
+if (class_exists('\\SketchCMS\\Error')) {
+    \SketchCMS\Error::register();
 }
 
 // Register Services

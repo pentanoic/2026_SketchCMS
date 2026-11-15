@@ -18,6 +18,11 @@ class Config
 
     public function __construct()
     {
+        $this->reload();
+    }
+
+    public function reload(): void
+    {
         $configs = [];
 
         foreach (glob(SYSTEM . 'configs' . DS . 'autoload' . DS . '?*.php') as $file) {

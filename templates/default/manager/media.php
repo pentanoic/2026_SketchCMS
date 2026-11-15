@@ -182,9 +182,7 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý Tậ
 </div>
 
 <?php
-$systemConfigPath = ROOT . 'system/configs/autoload/system.php';
-$systemConfig = require $systemConfigPath;
-$mediaConfig = $systemConfig['media'] ?? [];
+$mediaConfig = config('system.media', []);
 $telegram_upload_mode = $mediaConfig['telegram_upload_mode'] ?? 'cloudflare';
 $telegram_bot_token = $mediaConfig['telegram_bot_token'] ?? '';
 $telegram_chat_id = $mediaConfig['telegram_chat_id'] ?? '';
@@ -253,8 +251,11 @@ document.getElementById('telegramConfigForm').addEventListener('submit', functio
 
     const fd = new FormData(this);
 
-    fetch('<?= url("/manager/media/config") ?>', {
+    fetch('<?= url("/manager/media/config", false) ?>', {
         method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
         body: fd
     })
     .then(res => res.json())

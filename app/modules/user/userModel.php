@@ -61,9 +61,10 @@ class userModel extends Model
             $stmt = $this->db->prepare("UPDATE users SET remember_token = NULL WHERE id = ?");
             $stmt->execute([intval($_SESSION['uid'])]);
         }
+        $cookiePath = '/' . ltrim((string) Env::get('SITE_PATH', ''), '/');
         $cookieOpts = [
             'expires'  => TIME - 60,
-            'path'     => COOKIE_PATH ?: '/',
+            'path'     => $cookiePath ?: '/',
             'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
             'httponly' => true,
             'samesite' => 'Lax',
@@ -137,7 +138,7 @@ class userModel extends Model
     public function UserDetailWithFields($fields = 'nick', $value = 'bot')
     {
         if ($value === 'bot') {
-            $value = UserBot;
+            $value = (string) Env::get('USER_BOT', 'SystemBOT');
         }
 
         $stmt = $this->articlesModel->ForumDetailWithFields('users', $fields, $value);

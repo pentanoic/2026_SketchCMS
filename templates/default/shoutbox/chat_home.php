@@ -76,13 +76,12 @@
     </div>
 
     <!-- Khu vực chat (Nơi JS sẽ tải nội dung vào div#idChat) -->
-    <div class="dw-card-body p-0" style="background: var(--surface-muted); max-height: 500px; overflow-y: auto;">
-        <div id="postText" style="display:none;"></div> <!-- Giữ lại div này phòng khi JS của user cần, ẩn đi tránh lỗi ID trùng -->
+    <div class="dw-card-body p-0" id="chat-place" style="background: var(--surface-muted); max-height: 500px; overflow-y: auto;">
         <div id="idChat" class="p-3"></div>
     </div>
 </div>
 
-<script type="text/javascript">
+<script type="text/javascript" nonce="<?= _e(csp_nonce()) ?>">
     function show_hide(id) {
         var el = document.getElementById(id);
         if (el) el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
@@ -97,10 +96,10 @@
     var totalChat = "<?= _e($chat_count) ?>";
     var pageID = 1;
     var sysRateLimit = <?= (int)(config('system.security.rate_limit') ?? 1) * 1000 ?>;
-    var chatbox = "<?= url('/shoutbox/list') ?>",
-        chat_send = "<?= url('/shoutbox/send') ?>",
-        chat_count = "<?= url('/shoutbox/count') ?>",
-        chat_ele = "<?= url('/shoutbox/ele?chatID=') ?>",
-        chat_list = "<?= url('/shoutbox/list?page=') ?>";
+    var chatbox = "<?= url('/shoutbox/list', false) ?>",
+        chat_send = "<?= url('/shoutbox/send', false) ?>",
+        chat_count = "<?= url('/shoutbox/count', false) ?>",
+        chat_ele = "<?= url('/shoutbox/ele?chatID=', false) ?>",
+        chat_list = "<?= url('/shoutbox/list?page=', false) ?>";
 </script>
-<script type="text/javascript" src="<?= url('/templates' . get_template() . '/public/js/shoutbox.js?v=' . time()) ?>"></script>
+<script type="text/javascript" nonce="<?= _e(csp_nonce()) ?>" src="<?= url('/templates' . get_template() . '/public/js/shoutbox.js?v=' . time()) ?>"></script>

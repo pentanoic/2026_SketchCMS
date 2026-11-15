@@ -64,8 +64,8 @@ class Auth
             $rawCuid = trim((string)$_COOKIE['cuid']);
             if (strpos($rawCuid, '.') !== false) {
                 [$b64Id, $sig] = explode('.', $rawCuid, 2);
-                $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
-                        . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+                $secret = (string) Env::get('E2E_SECRET_KEY', 'sketch_secret')
+                        . (string) Env::get('SECOND_PASSWORD', '');
                 if (hash_equals(hash_hmac('sha256', $b64Id, $secret), $sig)) {
                     $cookie_id = intval(base64_decode($b64Id, true));
                 }
@@ -145,9 +145,10 @@ class Auth
     private function unset()
     {
         unset($_SESSION['uid']);
+        $cookiePath = '/' . ltrim((string) Env::get('SITE_PATH', ''), '/');
         $cookieOpts = [
             'expires'  => TIME - 60,
-            'path'     => COOKIE_PATH ?: '/',
+            'path'     => $cookiePath ?: '/',
             'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
             'httponly' => true,
             'samesite' => 'Lax',
@@ -161,7 +162,7 @@ class Auth
         $count = 0;
         if ($MyDetail['new_mail']) {
             $getMailList = explode('.', $MyDetail['new_mail']);
-            $sysBot = defined('UserBot') ? UserBot : 'sei';
+            $sysBot = (string) Env::get('USER_BOT', 'SystemBOT');
             $getMailList = array_filter($getMailList, function ($value) use ($sysBot) {
                 return $value !== null && $value !== false && $value !== "" && $value !== $sysBot;
             });
@@ -177,7 +178,8 @@ class Auth
             FROM mail 
             WHERE sender_receiver = ? AND view = ?
         ');
-        $stmtCount->execute([$MyDetail['nick'] . '_' . UserBot, 'no']);
+        $sysBot = (string) Env::get('USER_BOT', 'SystemBOT');
+        $stmtCount->execute([$MyDetail['nick'] . '_' . $sysBot, 'no']);
         $result = $stmtCount->fetch(PDO::FETCH_ASSOC);
         return $result['count'];
     }

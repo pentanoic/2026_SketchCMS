@@ -100,13 +100,14 @@ class userController extends Controller
                                     ]);
                                     
                                     $b64Id = base64_encode((string)$user['id']);
-                                    $secret = (defined('E2E_SECRET_KEY') ? E2E_SECRET_KEY : 'sketch_secret')
-                                            . (defined('SECOND_PASSWORD') ? SECOND_PASSWORD : '');
+                                    $secret = (string) Env::get('E2E_SECRET_KEY', 'sketch_secret')
+                                            . (string) Env::get('SECOND_PASSWORD', '');
                                     $signedCuid = $b64Id . '.' . hash_hmac('sha256', $b64Id, $secret);
 
+                                    $cookiePath = '/' . ltrim((string) Env::get('SITE_PATH', ''), '/');
                                     $cookieOpts = [
                                         'expires'  => TIME + 31536000,
-                                        'path'     => COOKIE_PATH ?: '/',
+                                        'path'     => $cookiePath ?: '/',
                                         'secure'   => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
                                         'httponly' => true,
                                         'samesite' => 'Lax',
@@ -133,7 +134,7 @@ class userController extends Controller
             ->setTitle('Đăng nhập')
             ->render('user/login', [
                 'error' => $error,
-                'inputAccount' => _e($account),
+                'inputAccount' => $account,
                 'inputRemember' => $remember,
                 'inputCaptcha' => $doomcaptcha
             ]);
@@ -221,8 +222,8 @@ class userController extends Controller
             ->setTitle('Đăng ký')
             ->render('user/register', [
                 'error' => $error,
-                'inputAccount' => _e($account),
-                'inputSex' => _e($sex)
+                'inputAccount' => $account,
+                'inputSex' => $sex
             ]);
     }
 
@@ -479,7 +480,7 @@ class userController extends Controller
         }
 
         // avatar, cover
-        $AvatarCoverParttern = '/^https?:\/\/(i\.)?imgur\.com\/[a-zA-Z0-9]+(\.jpg|\.jpeg|\.png|\.gif)?$|^https?:\/\/nosineup\.stockage\.workers\.dev\/[a-zA-Z0-9_.\/-]+$/i';
+        $AvatarCoverParttern = '/^(https?:\/\/(i\.)?imgur\.com\/[a-zA-Z0-9]+(\.jpg|\.jpeg|\.png|\.gif)?|https?:\/\/nosineup\.stockage\.workers\.dev\/[a-zA-Z0-9_.\/%-]+|(https?:\/\/[^\/]+)?\/media\/download\/[a-zA-Z0-9_.\/%-]+)$/i';
         if ($UserDetailEditType == 'avatar') {
             $SaveData = [
                 'avatar' => htmlspecialchars($avatar) ? htmlspecialchars($avatar) : $MyDetail['avatar'],
@@ -597,7 +598,7 @@ class userController extends Controller
     {
         $SaveData = [];
         $error = null;
-        $AvatarCoverParttern = '/^https?:\/\/(i\.)?imgur\.com\/[a-zA-Z0-9]+(\.jpg|\.jpeg|\.png|\.gif)?$|^https?:\/\/nosineup\.stockage\.workers\.dev\/[a-zA-Z0-9_.\/-]+$/i';
+        $AvatarCoverParttern = '/^(https?:\/\/(i\.)?imgur\.com\/[a-zA-Z0-9]+(\.jpg|\.jpeg|\.png|\.gif)?|https?:\/\/nosineup\.stockage\.workers\.dev\/[a-zA-Z0-9_.\/%-]+|(https?:\/\/[^\/]+)?\/media\/download\/[a-zA-Z0-9_.\/%-]+)$/i';
         $CategoryModel = $this->load->model('articles');
         $MyWaifu = $CategoryModel->ForumDetailWithFields('users_waifu', 'user_id', $MyDetail['id']);
 

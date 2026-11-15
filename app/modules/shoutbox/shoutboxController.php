@@ -54,6 +54,9 @@ class shoutboxController extends Controller
         }
 
         $msg = $this->request->postVar('msg', '');
+        if ($msg === '') {
+            $msg = $this->request->postVar('content', '');
+        }
         $msg = $this->articlesLibrary->TrimContent($msg);
         $msg_len = $this->articlesLibrary->ContentLen($msg);
         if (!$error) {
@@ -83,7 +86,7 @@ class shoutboxController extends Controller
             } else {
                 // Mã hóa E2E
                 $e2e = new E2E();
-                $encrypted_msg = $e2e->encrypt($msg, E2E_SECRET_KEY, 'shoutbox' . $user['nick']);
+                $encrypted_msg = $e2e->encrypt($msg, (string) Env::get('E2E_SECRET_KEY', ''), 'shoutbox' . $user['nick']);
                 $this->shoutboxModel->ChatSend($user, $encrypted_msg);
 
                 $this->userModel->UserDetailEdit($user, ['time_shoutbox' => $timeSet]);
@@ -97,6 +100,10 @@ class shoutboxController extends Controller
     public function ChatHome()
     {
         $this->userModel->isLoginredirect($this->request);
+        if ($this->request->getMethod() === 'POST') {
+            $this->ChatSend();
+            redirect('/shoutbox');
+        }
         return view('shoutbox/chat_home', [
             'chat_count' => $this->ChatCount
         ]);
@@ -113,16 +120,27 @@ class shoutboxController extends Controller
     {
         $id_chat = $this->request->getVar('chatID', 1);
         $ChatDetail = $this->shoutboxModel->ChatDetail($id_chat);
+        if (!$ChatDetail) {
+            return '';
+        }
         // Giải mã E2E
         $e2e = new E2E();
-        if ($e2e->isEncrypted($ChatDetail['comment'], E2E_SECRET_KEY, 'shoutbox' . $ChatDetail['name'])) {
-            $ChatDetail['comment'] = $e2e->decrypt($ChatDetail['comment'], E2E_SECRET_KEY, 'shoutbox' . $ChatDetail['name']);
+        $e2eKey = (string) Env::get('E2E_SECRET_KEY', '');
+        if ($e2e->isEncrypted($ChatDetail['comment'], $e2eKey, 'shoutbox' . $ChatDetail['name'])) {
+            $ChatDetail['comment'] = $e2e->decrypt($ChatDetail['comment'], $e2eKey, 'shoutbox' . $ChatDetail['name']);
         } else {
             $ChatDetail['comment'] = "<i>Nội dung này chưa mã hóa đầu cuối nên không thể hiển thị</i>";
         }
 
         $ChatDetail['comment'] = $this->articlesLibrary->bbcode($ChatDetail['comment']);
-        $UserDetail = $this->userModel->UserDetailWithFields('nick', $ChatDetail['name']);
+        $UserDetail = $this->userModel->UserDetailWithFields('nick', $ChatDetail['name']) ?: [
+            'nick' => $ChatDetail['name'],
+            'name' => $ChatDetail['name'],
+            'level' => 0,
+            'avatar' => '5',
+            'point' => 0,
+            'onl' => 0
+        ];
         $UserDetail['online_status'] = $this->userModel->UserOnlineStatus($UserDetail);
         return view('shoutbox/chat_ele', [
             'ChatDetail' => $ChatDetail,
@@ -154,13 +172,21 @@ class shoutboxController extends Controller
         $ChatList = [];
         foreach ($getChatList as $ChatDetail) {
             $name = mb_strtolower($ChatDetail['name']);
-            $ChatDetail['UserDetail'] = $this->userModel->UserDetailWithFields('nick', $name);
+            $ChatDetail['UserDetail'] = $this->userModel->UserDetailWithFields('nick', $name) ?: [
+                'nick' => $name,
+                'name' => $ChatDetail['name'],
+                'level' => 0,
+                'avatar' => '5',
+                'point' => 0,
+                'onl' => 0
+            ];
             $ChatDetail['UserDetail']['online_status'] = $this->userModel->UserOnlineStatus($ChatDetail['UserDetail']);
 
             // Giải mã E2E
             $e2e = new E2E();
-            if ($e2e->isEncrypted($ChatDetail['comment'], E2E_SECRET_KEY, 'shoutbox' . $ChatDetail['name'])) {
-                $ChatDetail['comment'] = $e2e->decrypt($ChatDetail['comment'], E2E_SECRET_KEY, 'shoutbox' . $ChatDetail['name']);
+            $e2eKey = (string) Env::get('E2E_SECRET_KEY', '');
+            if ($e2e->isEncrypted($ChatDetail['comment'], $e2eKey, 'shoutbox' . $ChatDetail['name'])) {
+                $ChatDetail['comment'] = $e2e->decrypt($ChatDetail['comment'], $e2eKey, 'shoutbox' . $ChatDetail['name']);
             } else {
                 $ChatDetail['comment'] = "<i>Nội dung này chưa mã hóa đầu cuối nên không thể hiển thị</i>";
             }

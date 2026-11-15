@@ -16,8 +16,9 @@ class homeModel extends Model
 {
     public function logout()
     {
-        setcookie('cuid', '', TIME - 60, COOKIE_PATH);
-        setcookie('cups', '', TIME - 60, COOKIE_PATH);
+        $cookiePath = '/' . ltrim((string) Env::get('SITE_PATH', ''), '/');
+        setcookie('cuid', '', TIME - 60, $cookiePath);
+        setcookie('cups', '', TIME - 60, $cookiePath);
         unset($_SESSION['uid']);
         unset($_SESSION['ups']);
     }

@@ -35,7 +35,7 @@ class mailModel extends Model
         $result = [];
         if ($MyDetail['mail_list'] != '') {
             $getMailList = explode('.', $MyDetail['mail_list']);
-            $sysBot = defined('UserBot') ? UserBot : 'sei';
+            $sysBot = (string) Env::get('USER_BOT', 'SystemBOT');
             $getMailList = array_filter($getMailList, function ($value) use ($sysBot) {
                 return $value !== null && $value !== false && $value !== "" && $value !== $sysBot;
             });
@@ -198,7 +198,7 @@ class mailModel extends Model
     // đếm
     public function MailSystemCount($MyDetail)
     {
-        $system_nick =  $MyDetail['nick'] . '_' . UserBot;
+        $system_nick =  $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
         $stmt = $this->db->prepare('
             SELECT COUNT(*) as count FROM `mail` WHERE `sender_receiver` = :sender_receiver
         ');
@@ -210,7 +210,7 @@ class mailModel extends Model
     // danh sách
     public function MailSystemList($MyDetail, $per, $start)
     {
-        $system_nick =  $MyDetail['nick'] . '_' . UserBot;
+        $system_nick =  $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT');
         $stmt = $this->db->prepare('
             SELECT * FROM `mail` WHERE `sender_receiver` = :sender_receiver
             ORDER BY `time` DESC LIMIT :start, :per
@@ -232,7 +232,7 @@ class mailModel extends Model
         $stmt->execute([
             'yes_view' => 'yes',
             'no_view' => 'no',
-            'sender_receiver' => $MyDetail['nick'] . '_' . UserBot
+            'sender_receiver' => $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT')
         ]);
         return null;
     }
@@ -240,7 +240,7 @@ class mailModel extends Model
     public function MailSystemClear($MyDetail)
     {
         $stmt = $this->db->prepare('DELETE FROM `mail` WHERE `sender_receiver` = :sender_receiver');
-        $stmt->execute(['sender_receiver' => $MyDetail['nick'] . '_' . UserBot]);
+        $stmt->execute(['sender_receiver' => $MyDetail['nick'] . '_' . (string) Env::get('USER_BOT', 'SystemBOT')]);
         return null;
     }
 }

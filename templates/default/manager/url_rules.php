@@ -37,12 +37,17 @@ $this->layout('manager/layout', ['page_title' => $page_title ?? 'Quản lý URL 
                             <tr><td colspan="3" class="text-center">Chưa có URL Rewrite nào.</td></tr>
                         <?php else: ?>
                             <?php foreach ($url_rules['rewrite'] as $path => $target): ?>
+                                <?php
+                                $targetDisplay = !empty($target['target'])
+                                    ? $target['target']
+                                    : (($target['controller'] ?? '') . '@' . ($target['action'] ?? ''));
+                                ?>
                                 <tr>
                                     <td><strong><?= _e($path) ?></strong></td>
-                                    <td><?= ($target['controller'] ?? '') . '@' . ($target['action'] ?? '') ?></td>
-                                    <td><span class="badge bg-primary text-white"><?= $target['method'] ?? 'GET|POST' ?></span></td>
+                                    <td><?= _e($targetDisplay) ?></td>
+                                    <td><span class="badge bg-primary text-white"><?= _e($target['method'] ?? 'GET|POST') ?></span></td>
                                     <td>
-                                        <button type="button" class="btn btn-warning btn-sm" onclick="editRewriteRule('<?= _e($path) ?>', '<?= ($target['controller'] ?? '') . '@' . ($target['action'] ?? '') ?>', '<?= $target['method'] ?? 'GET|POST' ?>')">
+                                        <button type="button" class="btn btn-warning btn-sm" onclick="editRewriteRule('<?= _e($path) ?>', '<?= _e($targetDisplay) ?>', '<?= _e($target['method'] ?? 'GET|POST') ?>')">
                                             <i class="fa fa-pencil"></i>
                                         </button>
                                         <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteRule('rewrite', '<?= _e($path) ?>')">

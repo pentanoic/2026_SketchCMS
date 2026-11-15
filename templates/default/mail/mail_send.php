@@ -174,10 +174,14 @@ $ReceiverColor = GetRoleColorStr($ReceiverDetail);
                 <i class="fa fa-minus-circle mr-1"></i> Bạn không thể nhắn tin cho người dùng này ngay lúc này!
             </div>
             <?php else: ?>
+            <?php if (!empty($error)): ?>
+            <div class="alert alert-danger mb-2 py-2 px-3 small">
+                <i class="fa fa-exclamation-triangle mr-1"></i> <?= $error ?>
+            </div>
+            <?php endif ?>
             <form id="form" action method="POST" name="form">
-    <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
                 <div class="form-group mb-2">
-                    <textarea id="postText" rows="2" class="form-control border-0 bg-light" name="content" placeholder="Nhập tin nhắn..." style="resize: none; border-radius: 15px; padding: 15px;"><?= $content ?></textarea>
+                    <textarea id="postText" rows="2" class="form-control border-0 bg-light" name="content" placeholder="Nhập tin nhắn..." style="resize: none; border-radius: 15px; padding: 15px;"><?= _e($content) ?></textarea>
                 </div>
                 <input type="hidden" name="csrf_token" value="<?= getCSRFToken() ?>">
                 <div class="d-flex justify-content-between align-items-center">

@@ -801,8 +801,9 @@ class custom_headlessController extends Controller
             $this->jsonResponse(['status' => 'error', 'message' => 'Category not found'], 404);
         }
 
-        // BFLA (API5): Chặn thành viên thường đăng bài vào chuyên mục Tin tức (NewsID)
-        if (defined('NewsID') && $category === (int)NewsID && (int)($user['level'] ?? 0) < 120) {
+        // BFLA (API5): Chặn thành viên thường đăng bài vào chuyên mục Tin tức (NEWS_ID)
+        $newsId = (int) Env::get('NEWS_ID', 1);
+        if ($category === $newsId && (int)($user['level'] ?? 0) < 120) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden: Only Contributors/Admins can publish in News'], 403);
         }
 
@@ -842,7 +843,8 @@ class custom_headlessController extends Controller
         }
 
         $category = isset($data['category']) ? (int)$data['category'] : (int)$post['category'];
-        if (defined('NewsID') && $category === (int)NewsID && (int)($user['level'] ?? 0) < 120) {
+        $newsId = (int) Env::get('NEWS_ID', 1);
+        if ($category === $newsId && (int)($user['level'] ?? 0) < 120) {
             $this->jsonResponse(['status' => 'error', 'message' => 'Forbidden: Cannot move article to News category'], 403);
         }
 

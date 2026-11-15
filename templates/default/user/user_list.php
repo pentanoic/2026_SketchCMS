@@ -56,9 +56,11 @@
                             <div class="ml-2 dropdown">
                                 <button class="btn btn-sm btn-light p-0 text-muted" type="button" data-toggle="dropdown" style="width: 24px; height: 24px; border-radius: 50%;"><i class="fa fa-ellipsis-v"></i></button>
                                 <div class="dropdown-menu dropdown-menu-right shadow-sm border-0">
-                                    <a class="dropdown-item text-warning" href="/user/<?= $UserDetail['nick'] ?>/ban"><i class="fa fa-ban mr-2"></i> Khóa tài khoản</a>
+                                    <a class="dropdown-item text-warning" href="<?= url('/user/' . $UserDetail['nick'] . '/ban') ?>"><i class="fa fa-ban mr-2"></i> Khóa tài khoản</a>
+                                    <?php if ($user['level'] >= 127): ?>
                                     <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item text-danger" href="/manager/user/<?= $UserDetail['nick'] ?>/delete" onclick="return confirm('Xác nhận xóa thành viên này?');"><i class="fa fa-trash mr-2"></i> Xóa vĩnh viễn</a>
+                                    <a class="dropdown-item text-danger" href="<?= url('/manager/users?q=' . urlencode($UserDetail['nick'])) ?>"><i class="fa fa-cog mr-2"></i> Quản lý thành viên</a>
+                                    <?php endif ?>
                                 </div>
                             </div>
                         <?php endif ?>

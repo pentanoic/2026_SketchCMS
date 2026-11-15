@@ -70,6 +70,6 @@ $codes = ['php', 'css', 'js', 'html', 'sql', 'twig', 'lua'];
 <?php
 if (!defined('BBCODE_JS_LOADED')) {
     define('BBCODE_JS_LOADED', true);
-    echo '<script src="' . url('/templates' . get_template() . '/public/js/bbcode.js?v=' . time()) . '"></script>';
+    echo '<script nonce="' . _e(csp_nonce()) . '" src="' . url('/templates' . get_template() . '/public/js/bbcode.js?v=' . time()) . '"></script>';
 }
 ?>

@@ -137,7 +137,7 @@
     <div class="dw-card-body p-0">
         <div class="list-group list-group-flush" style="border-radius: 0;">
             <?php $chapIdx = 1; foreach ($ChapterList as $ChapterDetail): ?>
-            <a href="<?= url('/view-chap/' . $ChapterDetail['id'] . '-' . $ChapterDetail['slug']) ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2" style="background: transparent; border-color: var(--border);">
+            <a href="<?= url('/view-chap/' . $ChapterDetail['id'] . '-' . $ChapterDetail['slug'] . '.html') ?>" class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2" style="background: transparent; border-color: var(--border);">
                 <div>
                     <span class="dw-badge dw-badge-accent mr-2">CH-<?= str_pad($chapIdx++, 2, '0', STR_PAD_LEFT) ?></span>
                     <span style="font-size: 13.5px; font-weight: 500; color: var(--fg);"><?= $ChapterDetail['title'] ?></span>
